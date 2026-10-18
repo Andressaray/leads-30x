@@ -1,0 +1,81 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": [
+    "react",
+    "typescript",
+    "oxc"
+  ],
+  "ignorePatterns": [
+    ".react-router/**",
+    "build/**",
+    "coverage/**"
+  ],
+  "rules": {
+    "react/rules-of-hooks": "error",
+    "react/only-export-components": [
+      "warn",
+      {
+        "allowConstantExport": true,
+        "allowExportNames": [
+          "meta",
+          "links",
+          "loader",
+          "clientLoader",
+          "headers",
+          "handle",
+          "ErrorBoundary",
+          "HydrateFallback",
+          "Layout"
+        ]
+      }
+    ],
+    "no-restricted-imports": [
+      "error",
+      {
+        "patterns": [
+          {
+            "group": [
+              "@/modules/*/*",
+              "@/modules/*/**"
+            ],
+            "message": "Import from the module's public API: @/modules/<name>"
+          }
+        ]
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": [
+        "src/shared/**"
+      ],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "@/modules/*",
+                  "@/modules/*/**",
+                  "@/seo/*",
+                  "@/root"
+                ],
+                "message": "shared/ must not depend on modules/, seo/ or root"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": [
+        "__test__/**"
+      ],
+      "rules": {
+        "no-restricted-imports": "off",
+        "react/only-export-components": "off"
+      }
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+node_modules/
+.DS_Store
+coverage/
+
+# Entornos (cada app tiene su .env)
+.env
+.env.test
+
+# API
+apps/api/dist/
+apps/api/src/generated/
+
+# Web (React Router)
+apps/web/.react-router/
+apps/web/build/

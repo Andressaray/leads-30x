@@ -1,0 +1,20 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "noEmit": true,
+    "isolatedModules": true,
+    "types": ["jest", "node"],
+    "paths": {
+      "~config/*": ["config/*"],
+      "~response/*": ["config/helpers/response/*"],
+      "~types/*": ["types/*"],
+      "~utils/*": ["utils/*"],
+      "~services/*": ["services/*"],
+      "modules/*": ["modules/*"],
+      "middlewares/*": ["middlewares/*"],
+      "~mocks/*": ["../__test__/mocks/*"]
+    }
+  },
+  "include": ["src", "__test__"]
+}

@@ -1,0 +1,11 @@
+packages:
+  - apps/*
+allowBuilds:
+  '@parcel/watcher': true
+  '@prisma/engines': true
+  prisma: true
+  esbuild: true
+  unrs-resolver: true
+  '@scarf/scarf': false
+minimumReleaseAgeExclude:
+  - tsc-alias@1.9.8

@@ -1,0 +1,431 @@
+// Única fuente de verdad del modelo de datos.
+// Convención: modelos PascalCase en singular, tablas y columnas en snake_case.
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+  runtime      = "nodejs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// Cada búsqueda que se hizo (ciudad + categoría) y su resumen.
+model Busqueda {
+  id                Int       @id @default(autoincrement())
+  ciudadTexto       String?   @map("ciudad_texto")
+  departamentoTexto String?   @map("departamento_texto")
+  codMpio           String    @map("cod_mpio") @db.Char(5)
+  municipio         String
+  departamento      String
+  categoria         String?
+  filtros           Json
+  fuentesPedidas    String[]  @map("fuentes_pedidas")
+  estado            String    @default("en_curso")
+  resumen           Json?
+  terminadoEn       DateTime? @map("terminado_en")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  fuentes     BusquedaFuente[]
+  leads       BusquedaLead[]
+  apariciones Aparicion[]
+  leadsOrigen Lead[]
+
+  @@index([codMpio])
+  @@map("busquedas")
+}
+
+/// Resultado de cada fuente dentro de una búsqueda (registros, nuevos, errores, tiempo).
+model BusquedaFuente {
+  busquedaId   Int      @map("busqueda_id")
+  fuente       String
+  estado       String
+  registros    Int      @default(0)
+  nuevos       Int      @default(0)
+  enriquecidos Int      @default(0)
+  sinCambios   Int      @default(0) @map("sin_cambios")
+  omitidos     Int      @default(0)
+  duracionMs   Int?     @map("duracion_ms")
+  error        String?
+  meta         Json?
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  busqueda Busqueda @relation(fields: [busquedaId], references: [id], onDelete: Cascade)
+
+  @@id([busquedaId, fuente])
+  @@index([busquedaId])
+  @@map("busqueda_fuentes")
+}
+
+/// Un negocio, ya deduplicado entre todas las fuentes.
+model Lead {
+  id               Int      @id @default(autoincrement())
+  nombre           String
+  nombreComercial  String?  @map("nombre_comercial")
+  razonSocial      String?  @map("razon_social")
+  /// nombre + razón social + nombre comercial, sin tildes ni mayúsculas (para buscar)
+  nombresNorm      String   @default("") @map("nombres_norm")
+  nit              String?
+  codMpio          String   @map("cod_mpio") @db.Char(5)
+  municipio        String
+  departamento     String
+  direccion        String?
+  direccionNorm    String?  @map("direccion_norm")
+  lat              Float?
+  lon              Float?
+  ciiu             String?
+  categoriaFuente  String?  @map("categoria_fuente")
+  categorias       String[] @default([])
+  /// [{ numero: "+573001234567", tipo: "movil" | "fijo", whatsapp?: true }]
+  telefonos        Json     @default("[]")
+  emails           String[] @default([])
+  sitiosWeb        String[] @default([]) @map("sitios_web")
+  redes            String[] @default([])
+  canalPrincipal   String?  @map("canal_principal")
+  contactable      Boolean  @default(false)
+  contactado       Boolean   @default(false)
+  contactadoEn     DateTime? @map("contactado_en")
+  /// Usuario que hizo el primer acercamiento (se asigna al darle "Contactar").
+  contactadoPorId  Int?      @map("contactado_por_id")
+  /// Embudo de contacto: PENDIENTE → CONTACTADO → RESPONDIO / INTERESADO / NO_INTERESADO / REBOTADO.
+  estadoContacto   EstadoContacto @default(PENDIENTE) @map("estado_contacto")
+  /// Último mensaje o llamada que el equipo le hizo.
+  ultimoContactoEn DateTime? @map("ultimo_contacto_en")
+  /// Primera vez que respondió (para medir la tasa de respuesta).
+  respondioEn      DateTime? @map("respondio_en")
+  /// Pidió no volver a ser contactado (Ley 1581 y Ley 2300): bloquea todo envío.
+  noContactar      Boolean   @default(false) @map("no_contactar")
+  noContactarEn    DateTime? @map("no_contactar_en")
+  /// Última calificación (Dapta o manual): ALTA, MEDIA, BAJA o DESCARTADO.
+  calidad          CalidadLead?
+  /// Puntaje 0–100 de la última calificación, si vino.
+  puntaje          Int?
+  calificadoEn     DateTime? @map("calificado_en")
+  esPersonaNatural Boolean? @map("es_persona_natural")
+  fuentes          String[] @default([])
+  numFuentes       Int      @default(1) @map("num_fuentes")
+  fuenteOrigen     String   @map("fuente_origen")
+  busquedaOrigenId Int?     @map("busqueda_origen_id")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  busquedaOrigen Busqueda?      @relation(fields: [busquedaOrigenId], references: [id], onDelete: SetNull)
+  contactadoPor  Usuario?       @relation(fields: [contactadoPorId], references: [id], onDelete: SetNull)
+  claves         LeadClave[]
+  apariciones    Aparicion[]
+  busquedas      BusquedaLead[]
+  interacciones  Interaccion[]
+  calificaciones Calificacion[]
+
+  @@index([codMpio, lat, lon])
+  @@index([codMpio, direccionNorm])
+  @@index([nit])
+  @@index([contactable])
+  @@index([contactado])
+  @@index([contactadoPorId])
+  @@index([estadoContacto])
+  @@index([calidad])
+  @@index([createdAt])
+  @@index([busquedaOrigenId])
+  @@map("leads")
+}
+
+/// Claves fuertes para deduplicar: NIT, teléfono, email, dominio web.
+model LeadClave {
+  tipo      String
+  valor     String
+  leadId    Int      @map("lead_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@id([tipo, valor])
+  @@index([leadId])
+  @@map("lead_claves")
+}
+
+/// Cada vez que una fuente devolvió un negocio y cómo se cruzó con el lead.
+/// created_at = primera vez que se vio; updated_at = última vez.
+model Aparicion {
+  id           Int      @id @default(autoincrement())
+  leadId       Int      @map("lead_id")
+  fuente       String
+  idExterno    String   @map("id_externo")
+  coincidencia String
+  datos        Json?
+  busquedaId   Int?     @map("busqueda_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  lead     Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  busqueda Busqueda? @relation(fields: [busquedaId], references: [id], onDelete: SetNull)
+
+  @@unique([fuente, idExterno])
+  @@index([leadId])
+  @@index([busquedaId])
+  @@map("apariciones")
+}
+
+/// Qué leads trajo cada búsqueda y con qué resultado (nuevo, enriquecido, sin_cambios).
+model BusquedaLead {
+  busquedaId Int      @map("busqueda_id")
+  leadId     Int      @map("lead_id")
+  fuente     String
+  resultado  String
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  busqueda Busqueda @relation(fields: [busquedaId], references: [id], onDelete: Cascade)
+  lead     Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@id([busquedaId, leadId, fuente])
+  @@index([busquedaId])
+  @@index([leadId])
+  @@map("busqueda_leads")
+}
+
+enum Rol {
+  SERVICE
+  ADMIN
+}
+
+/// Personas que usan la app. La contraseña se guarda solo como hash bcrypt.
+model Usuario {
+  id           Int      @id @default(autoincrement())
+  email        String   @unique
+  fullName     String   @map("full_name")
+  rol          Rol      @default(SERVICE)
+  passwordHash String   @map("password_hash")
+  activo       Boolean  @default(true)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  leadsContactados Lead[]
+  interacciones    Interaccion[]
+  plantillas       Plantilla[]
+  calificaciones   Calificacion[]
+  costos           Costo[]
+  fuentes          Fuente[]
+
+  @@map("usuarios")
+}
+
+enum EstadoContacto {
+  PENDIENTE
+  CONTACTADO
+  RESPONDIO
+  INTERESADO
+  NO_INTERESADO
+  REBOTADO
+}
+
+enum CanalContacto {
+  EMAIL
+  WHATSAPP
+  LLAMADA
+  OTRO
+  /// Llamada del agente de voz de Dapta (para la Ley 2300 cuenta como llamada).
+  DAPTA
+}
+
+enum SentidoInteraccion {
+  /// El equipo escribió o llamó al lead.
+  SALIENTE
+  /// El lead respondió (o rebotó el correo).
+  ENTRANTE
+}
+
+enum EstadoInteraccion {
+  /// El correo salió por SMTP.
+  ENVIADO
+  /// Modo desarrollo sin SMTP: se registró pero no salió.
+  SIMULADO
+  /// El servidor de correo lo rechazó.
+  FALLIDO
+  /// Registrado a mano (WhatsApp, llamada, respuesta).
+  REGISTRADO
+}
+
+/// Historial de contacto de un lead: cada mensaje enviado, llamada hecha o respuesta recibida.
+model Interaccion {
+  id          Int                @id @default(autoincrement())
+  leadId      Int                @map("lead_id")
+  usuarioId   Int?               @map("usuario_id")
+  canal       CanalContacto
+  sentido     SentidoInteraccion
+  estado      EstadoInteraccion
+  /// Correo o teléfono al que se escribió.
+  destino     String?
+  asunto      String?
+  mensaje     String?
+  nota        String?
+  /// En las entrantes: cómo respondió el lead.
+  resultado   EstadoContacto?
+  error       String?
+  /// Id del mensaje en el servidor de correo.
+  proveedorId String?            @map("proveedor_id")
+  plantillaId Int?               @map("plantilla_id")
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt @map("updated_at")
+
+  lead      Lead       @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  usuario   Usuario?   @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+  plantilla Plantilla? @relation(fields: [plantillaId], references: [id], onDelete: SetNull)
+
+  @@index([leadId])
+  @@index([usuarioId])
+  @@index([plantillaId])
+  @@index([canal, createdAt])
+  @@map("interacciones")
+}
+
+/// Mensajes reutilizables con variables ({{nombre}}, {{municipio}}…).
+model Plantilla {
+  id          Int           @id @default(autoincrement())
+  nombre      String
+  canal       CanalContacto
+  /// Solo correo.
+  asunto      String?
+  cuerpo      String
+  activa      Boolean       @default(true)
+  creadoPorId Int?          @map("creado_por_id")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  creadoPor     Usuario?      @relation(fields: [creadoPorId], references: [id], onDelete: SetNull)
+  interacciones Interaccion[]
+
+  @@index([creadoPorId])
+  @@index([canal, activa])
+  @@map("plantillas")
+}
+
+enum CalidadLead {
+  ALTA
+  MEDIA
+  BAJA
+  /// No es cliente posible (no aplica, número errado, cerró…).
+  DESCARTADO
+}
+
+enum OrigenCalificacion {
+  DAPTA
+  MANUAL
+}
+
+enum EstadoCalificacion {
+  /// Se envió a Dapta y se espera el resultado.
+  ENVIADO
+  /// Sin DAPTA_FLOW_URL en desarrollo: se registró pero no salió.
+  SIMULADO
+  /// Dapta no recibió el lead.
+  FALLIDO
+  /// Llegó la calificación.
+  CALIFICADO
+  /// Dapta no logró hablar con el lead (no contestó, buzón).
+  SIN_CONTACTO
+}
+
+/// Cada envío a Dapta (y su resultado) o calificación manual de un lead.
+model Calificacion {
+  id          Int                @id @default(autoincrement())
+  leadId      Int                @map("lead_id")
+  usuarioId   Int?               @map("usuario_id")
+  origen      OrigenCalificacion
+  estado      EstadoCalificacion
+  /// Id que viaja a Dapta y vuelve en el webhook para cruzar la respuesta.
+  referencia  String             @unique
+  calidad     CalidadLead?
+  puntaje     Int?
+  resumen     String?
+  /// Variables que extrajo Dapta de la llamada (lo que se haya configurado en el flujo).
+  variables   Json?
+  llamadaId   String?            @map("llamada_id")
+  error       String?
+  calificadoEn DateTime?         @map("calificado_en")
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt @map("updated_at")
+
+  lead    Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  usuario Usuario? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+
+  @@index([leadId])
+  @@index([usuarioId])
+  @@index([estado])
+  @@map("calificaciones")
+}
+
+enum TipoCosto {
+  /// Plata que se pagó (servidor, proveedor de correo, Dapta…).
+  GASTO
+  /// Horas del equipo × valor de la hora.
+  HORAS
+}
+
+/// Lo que costó cada canal en un periodo. "general" se reparte entre las fuentes según los leads que trajo cada una.
+model Costo {
+  id          Int       @id @default(autoincrement())
+  /// dane, osm, rnt, secop, reps (fuentes) · email, whatsapp, llamada, dapta (contacto) · general
+  canal       String
+  tipo        TipoCosto @default(GASTO)
+  descripcion String
+  /// Pesos colombianos. En HORAS = horas × valorHora.
+  monto       Decimal   @db.Decimal(14, 2)
+  horas       Decimal?  @db.Decimal(8, 2)
+  valorHora   Decimal?  @db.Decimal(12, 2) @map("valor_hora")
+  /// Periodo que cubre el costo (fechas, inclusive).
+  desde       DateTime  @db.Date
+  hasta       DateTime  @db.Date
+  creadoPorId Int?      @map("creado_por_id")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  creadoPor Usuario? @relation(fields: [creadoPorId], references: [id], onDelete: SetNull)
+
+  @@index([canal])
+  @@index([desde, hasta])
+  @@index([creadoPorId])
+  @@map("costos")
+}
+
+enum TipoFuente {
+  /// Programada en services/fuentes (DANE, OSM, RNT, SECOP, REPS): solo se activa o desactiva.
+  INTEGRADA
+  /// Dataset de datos.gov.co agregado por el equipo, sin programar.
+  DATOS_ABIERTOS
+}
+
+/// Fuentes en las que se buscan leads. Las búsquedas solo consultan las activas.
+model Fuente {
+  /// Identificador corto: "dane", "camara_comercio_cali"…
+  clave       String     @id
+  nombre      String
+  descripcion String     @default("")
+  /// Qué datos de contacto trae (texto para el equipo).
+  contacto    String?
+  enlace      String?
+  tipo        TipoFuente @default(DATOS_ABIERTOS)
+  activa      Boolean    @default(true)
+  /// Solo DATOS_ABIERTOS: id del dataset en datos.gov.co ("abcd-1234").
+  dataset     String?
+  /// Solo DATOS_ABIERTOS: qué columna trae cada dato (municipio, nombre, nit, telefonos…).
+  campos      Json?
+  /// Solo DATOS_ABIERTOS: condición SoQL extra (ej. estado='ACTIVO').
+  condicion   String?
+  /// Solo DATOS_ABIERTOS: categorías en las que se consulta ("*" = en todas). Vacío = solo en "Todos los negocios".
+  categorias  String[]   @default([])
+  creadoPorId Int?       @map("creado_por_id")
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+
+  creadoPor Usuario? @relation(fields: [creadoPorId], references: [id], onDelete: SetNull)
+
+  @@index([activa])
+  @@index([creadoPorId])
+  @@map("fuentes")
+}

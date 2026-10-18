@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2023"],
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "rootDir": "src",
+    "outDir": "dist",
+    "baseUrl": "src",
+    "paths": {
+      "~config/*": ["config/*"],
+      "~response/*": ["config/helpers/response/*"],
+      "~types/*": ["types/*"],
+      "~utils/*": ["utils/*"],
+      "~services/*": ["services/*"],
+      "modules/*": ["modules/*"],
+      "middlewares/*": ["middlewares/*"]
+    },
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "forceConsistentCasingInFileNames": true,
+    "sourceMap": true
+  },
+  "include": ["src"]
+}
