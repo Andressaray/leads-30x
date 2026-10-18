@@ -1,14 +1,14 @@
-import type { CalidadLead, EstadoContacto } from "@/modules/contacto";
+import type { LeadQuality, ContactStatus } from "@/modules/contact";
 
-export type NombreFuente = "dane" | "osm" | "rnt" | "secop" | "reps";
+export type SourceName = "dane" | "osm" | "rnt" | "secop" | "reps";
 
-export interface Telefono {
-  numero: string;
-  tipo: "movil" | "fijo";
+export interface Phone {
+  number: string;
+  type: "mobile" | "landline";
   whatsapp?: boolean;
 }
 
-export interface ContactadoPor {
+export interface ContactedBy {
   id: number;
   fullName: string;
   email: string;
@@ -16,55 +16,55 @@ export interface ContactadoPor {
 
 export interface Lead {
   id: number;
-  nombre: string;
-  razonSocial: string | null;
+  name: string;
+  legalName: string | null;
   nit: string | null;
-  municipio: string;
-  departamento: string;
-  direccion: string | null;
-  telefonos: Telefono[];
+  municipality: string;
+  department: string;
+  address: string | null;
+  phones: Phone[];
   emails: string[];
-  sitiosWeb: string[];
-  redes: string[];
+  websites: string[];
+  socialLinks: string[];
   contactable: boolean;
-  contactado?: boolean;
-  contactadoEn?: string | null;
-  contactadoPorId?: number | null;
-  /** Quién le dio "Contactar". */
-  contactadoPor?: ContactadoPor | null;
-  estadoContacto?: EstadoContacto;
-  ultimoContactoEn?: string | null;
-  respondioEn?: string | null;
-  /** Pidió no volver a ser contactado. */
-  noContactar?: boolean;
-  calidad?: CalidadLead | null;
-  puntaje?: number | null;
-  fuentes: NombreFuente[];
+  contacted?: boolean;
+  contactedAt?: string | null;
+  contactedById?: number | null;
+  /** Who pressed "Contact". */
+  contactedBy?: ContactedBy | null;
+  contactStatus?: ContactStatus;
+  lastContactedAt?: string | null;
+  repliedAt?: string | null;
+  /** Asked not to be contacted again. */
+  doNotContact?: boolean;
+  quality?: LeadQuality | null;
+  score?: number | null;
+  sources: SourceName[];
 }
 
-export interface ListadoLeads {
+export interface LeadList {
   total: number;
-  pagina: number;
-  limite: number;
+  page: number;
+  limit: number;
   leads: Lead[];
 }
 
-/** Filtros de GET /api/leads (ver README de la API). */
-export interface FiltrosLeads {
-  busqueda?: number;
-  contactado?: boolean;
-  /** true = solo los que contacté yo; sin valor = los de todo el equipo. */
-  mios?: boolean;
-  /** Solo los que contactó este usuario (id). */
-  contactado_por?: number;
-  /** Estados del embudo separados por coma (ej. "RESPONDIO,INTERESADO"). */
-  estado?: string;
-  /** Calidades separadas por coma; "SIN" = sin calificar. */
-  calidad?: string;
-  municipio?: string;
-  departamento?: string;
-  categoria?: string;
-  fuente?: NombreFuente;
+/** GET /api/leads filters (see the API README). */
+export interface LeadFilters {
+  search?: number;
+  contacted?: boolean;
+  /** true = only the ones I contacted; without a value = the whole team's. */
+  mine?: boolean;
+  /** Only the ones contacted by this user (id). */
+  contacted_by?: number;
+  /** Funnel statuses separated by commas (e.g. "REPLIED,INTERESTED"). */
+  status?: string;
+  /** Qualities separated by commas; "NONE" = not qualified. */
+  quality?: string;
+  municipality?: string;
+  department?: string;
+  category?: string;
+  source?: SourceName;
   contactable?: boolean;
   q?: string;
 }

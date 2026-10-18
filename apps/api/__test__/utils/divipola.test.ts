@@ -1,31 +1,31 @@
-import { MUNICIPIOS, resolverDepartamento, resolverMunicipio } from '~utils/divipola';
+import { MUNICIPALITIES, resolveDepartment, resolveMunicipality } from '~utils/divipola';
 
-const codigo = (r: ReturnType<typeof resolverMunicipio>) => ('municipio' in r ? r.municipio.codigo : r);
+const code = (r: ReturnType<typeof resolveMunicipality>) => ('municipality' in r ? r.municipality.code : r);
 
 describe('DIVIPOLA', () => {
-  it('trae las 1.122 entidades', () => {
-    expect(MUNICIPIOS).toHaveLength(1122);
+  it('loads the 1,122 entities', () => {
+    expect(MUNICIPALITIES).toHaveLength(1122);
   });
 
-  it('alias, tildes y nombres oficiales largos', () => {
-    expect(codigo(resolverMunicipio({ ciudad: 'medellin' }))).toBe('05001');
-    expect(codigo(resolverMunicipio({ ciudad: 'Bogotá' }))).toBe('11001');
-    expect(codigo(resolverMunicipio({ ciudad: 'cali' }))).toBe('76001');
-    expect(codigo(resolverMunicipio({ ciudad: 'Cúcuta' }))).toBe('54001');
-    expect(codigo(resolverMunicipio({ codigo: '05615' }))).toBe('05615');
+  it('aliases, accents and long official names', () => {
+    expect(code(resolveMunicipality({ city: 'medellin' }))).toBe('05001');
+    expect(code(resolveMunicipality({ city: 'Bogotá' }))).toBe('11001');
+    expect(code(resolveMunicipality({ city: 'cali' }))).toBe('76001');
+    expect(code(resolveMunicipality({ city: 'Cúcuta' }))).toBe('54001');
+    expect(code(resolveMunicipality({ code: '05615' }))).toBe('05615');
   });
 
-  it('nombres repetidos piden departamento', () => {
-    const r = resolverMunicipio({ ciudad: 'Granada' });
-    expect('candidatos' in r && r.candidatos.map((c) => c.codigo)).toEqual(['05313', '25312', '50313']);
-    expect(codigo(resolverMunicipio({ ciudad: 'Granada', departamento: 'Meta' }))).toBe('50313');
-    expect(codigo(resolverMunicipio({ ciudad: 'Rionegro', departamento: 'santander' }))).toBe('68615');
+  it('repeated names require a department', () => {
+    const r = resolveMunicipality({ city: 'Granada' });
+    expect('candidates' in r && r.candidates.map((c) => c.code)).toEqual(['05313', '25312', '50313']);
+    expect(code(resolveMunicipality({ city: 'Granada', department: 'Meta' }))).toBe('50313');
+    expect(code(resolveMunicipality({ city: 'Rionegro', department: 'santander' }))).toBe('68615');
   });
 
-  it('errores', () => {
-    expect(resolverMunicipio({ ciudad: 'Gotham' })).toEqual({ error: expect.stringContaining('No encontré') });
-    expect(resolverMunicipio({ ciudad: 'Granada', departamento: 'Narnia' })).toEqual({ error: expect.stringContaining('departamento') });
-    expect(resolverDepartamento('valle')).toBe('76');
-    expect(resolverDepartamento('')).toBeNull();
+  it('errors', () => {
+    expect(resolveMunicipality({ city: 'Gotham' })).toEqual({ error: expect.stringContaining('No encontré') });
+    expect(resolveMunicipality({ city: 'Granada', department: 'Narnia' })).toEqual({ error: expect.stringContaining('departamento') });
+    expect(resolveDepartment('valle')).toBe('76');
+    expect(resolveDepartment('')).toBeNull();
   });
 });

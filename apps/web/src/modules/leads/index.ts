@@ -1,5 +1,5 @@
-// API pública del módulo leads: tabla paginada, descarga CSV y tipos.
+// Public API of the leads module: paginated table, CSV download and types.
 export { LeadsPanel } from "./components/LeadsPanel";
 export { LeadsTableSkeleton } from "./components/LeadsTable";
-export { descargarCsvBusqueda, LIMITE_TABLA } from "./services/leads.service";
-export type { ContactadoPor, FiltrosLeads, Lead, ListadoLeads, NombreFuente, Telefono } from "./types";
+export { downloadSearchCsv, TABLE_LIMIT } from "./services/leads.service";
+export type { ContactedBy, LeadFilters, Lead, LeadList, SourceName, Phone } from "./types";

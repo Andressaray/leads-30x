@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
-import { sessionStore, type Sesion } from "@/shared/lib/session-store";
+import { sessionStore, type Session } from "@/shared/lib/session-store";
 
-/** Sesión actual (se re-renderiza al iniciar o cerrar sesión). null si no hay. */
-export function useSesion(): Sesion | null {
+/** Current session (re-renders on login or logout). null if there is none. */
+export function useSession(): Session | null {
   return useSyncExternalStore(sessionStore.subscribe, sessionStore.get, () => null);
 }

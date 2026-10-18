@@ -2,8 +2,8 @@ import path from 'node:path';
 import swaggerJsdoc from 'swagger-jsdoc';
 import { environment } from '~config/environment';
 
-// Definición compartida. Cada módulo se documenta solo en modules/<modulo>/dosc/*.swagger.ts
-// y este glob lo recoge automáticamente.
+// Shared definition. Each module documents itself in modules/<module>/docs/*.swagger.ts
+// and this glob picks it up automatically.
 export const swaggerSpec = swaggerJsdoc({
   definition: {
     openapi: '3.0.3',
@@ -32,5 +32,5 @@ export const swaggerSpec = swaggerJsdoc({
     },
     security: [{ bearerAuth: [] }],
   },
-  apis: [path.join(__dirname, '..', 'modules', '**', 'dosc', '*.swagger.{ts,js}')],
+  apis: [path.join(__dirname, '..', 'modules', '**', 'docs', '*.swagger.{ts,js}')],
 });

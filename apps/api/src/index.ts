@@ -1,32 +1,32 @@
-// Punto de entrada: carga y valida el entorno, y levanta el servidor.
+// Entry point: loads and validates the environment, and starts the server.
 import 'dotenv/config';
 import { environment } from '~config/environment';
-import { crearApp } from '~config/app';
+import { createApp } from '~config/app';
 import { prisma } from '~config/db/client';
 import { logger } from '~config/logger';
-import { cerrarBusquedasInconclusas } from 'modules/busquedas/repository/busquedas.repository';
+import { closeUnfinishedSearches } from 'modules/searches/repository/searches.repository';
 
-async function iniciar(): Promise<void> {
+async function start(): Promise<void> {
   await prisma.$connect();
-  const inconclusas = await cerrarBusquedasInconclusas();
-  if (inconclusas) logger.warn(`${inconclusas} búsqueda(s) quedaron a medias en el último arranque; se marcaron como fallidas.`);
-  const app = crearApp();
-  const servidor = app.listen(environment.port, () => {
-    logger.info(`Leads Colombia escuchando en http://localhost:${environment.port}`);
-    logger.info(`Documentación: http://localhost:${environment.port}${environment.apiPrefix}/docs`);
+  const unfinished = await closeUnfinishedSearches();
+  if (unfinished) logger.warn(`${unfinished} search(es) were left unfinished in the last run; they were marked as failed.`);
+  const app = createApp();
+  const server = app.listen(environment.port, () => {
+    logger.info(`Leads Colombia listening on http://localhost:${environment.port}`);
+    logger.info(`Docs: http://localhost:${environment.port}${environment.apiPrefix}/docs`);
   });
 
-  const cerrar = () => {
-    servidor.close(async () => {
+  const close = () => {
+    server.close(async () => {
       await prisma.$disconnect();
       process.exit(0);
     });
   };
-  process.on('SIGINT', cerrar);
-  process.on('SIGTERM', cerrar);
+  process.on('SIGINT', close);
+  process.on('SIGTERM', close);
 }
 
-iniciar().catch((err) => {
-  logger.error(err, 'No se pudo iniciar el servidor');
+start().catch((err) => {
+  logger.error(err, 'The server could not start');
   process.exit(1);
 });

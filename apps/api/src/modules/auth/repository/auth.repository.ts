@@ -1,32 +1,32 @@
-// Acceso a datos de usuarios. Una función por consulta, sin reglas de negocio.
+// User data access. One function per query, no business rules.
 import { prisma } from '~config/db/client';
-import type { MiembroDTO, UsuarioConHashDTO, UsuarioDTO } from '../types/auth.types';
+import type { MemberDTO, UserWithHashDTO, UserDTO } from '../types/auth.types';
 
-const SIN_HASH = { id: true, email: true, fullName: true, rol: true, activo: true, createdAt: true, updatedAt: true } as const;
+const WITHOUT_HASH = { id: true, email: true, fullName: true, role: true, active: true, createdAt: true, updatedAt: true } as const;
 
-export async function findUsuarioPorEmail(email: string): Promise<UsuarioConHashDTO | null> {
-  return prisma.usuario.findUnique({ where: { email } });
+export async function findUserByEmail(email: string): Promise<UserWithHashDTO | null> {
+  return prisma.user.findUnique({ where: { email } });
 }
 
-export async function findUsuarioPorId(id: number): Promise<UsuarioDTO | null> {
-  return prisma.usuario.findUnique({ where: { id }, select: SIN_HASH });
+export async function findUserById(id: number): Promise<UserDTO | null> {
+  return prisma.user.findUnique({ where: { id }, select: WITHOUT_HASH });
 }
 
-export async function findUsuarios(): Promise<UsuarioDTO[]> {
-  return prisma.usuario.findMany({ select: SIN_HASH, orderBy: { fullName: 'asc' } });
+export async function findUsers(): Promise<UserDTO[]> {
+  return prisma.user.findMany({ select: WITHOUT_HASH, orderBy: { fullName: 'asc' } });
 }
 
-/** Usuarios activos que no son ADMIN, con cuántos leads contactó cada uno. */
-export async function findMiembros(): Promise<MiembroDTO[]> {
-  const filas = await prisma.usuario.findMany({
-    where: { activo: true, rol: { not: 'ADMIN' } },
+/** Active users that are not ADMIN, with how many leads each one contacted. */
+export async function findMembers(): Promise<MemberDTO[]> {
+  const rows = await prisma.user.findMany({
+    where: { active: true, role: { not: 'ADMIN' } },
     select: {
       id: true,
       fullName: true,
       email: true,
-      _count: { select: { leadsContactados: { where: { contactado: true } } } },
+      _count: { select: { contactedLeads: { where: { contacted: true } } } },
     },
     orderBy: { fullName: 'asc' },
   });
-  return filas.map(({ _count, ...u }) => ({ ...u, contactados: _count.leadsContactados }));
+  return rows.map(({ _count, ...u }) => ({ ...u, contacted: _count.contactedLeads }));
 }

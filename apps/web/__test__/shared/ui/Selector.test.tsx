@@ -2,132 +2,132 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
-import { Selector, type OpcionSelector } from "@/shared/ui";
+import { Selector, type SelectorOption } from "@/shared/ui";
 
-const OPCIONES: OpcionSelector[] = [
-  { valor: "todos", etiqueta: "Todo el equipo" },
-  { valor: "1", etiqueta: "Ana Ruiz", detalle: "ana@leads.co" },
-  { valor: "2", etiqueta: "Álvaro Díaz" },
-  { valor: "3", etiqueta: "Beatriz Mora" },
+const OPTIONS: SelectorOption[] = [
+  { value: "all", label: "Todo el equipo" },
+  { value: "1", label: "Ana Ruiz", detail: "ana@leads.co" },
+  { value: "2", label: "Álvaro Díaz" },
+  { value: "3", label: "Beatriz Mora" },
 ];
 
-function Prueba({ onCambiar = vi.fn(), inicial = "todos", deshabilitado = false }) {
-  const [valor, setValor] = useState(inicial);
+function Test({ onChange = vi.fn(), initial = "all", disabled = false }) {
+  const [value, setValue] = useState(initial);
   return (
     <Selector
-      etiqueta="Contactado por"
-      opciones={OPCIONES}
-      valor={valor}
-      deshabilitado={deshabilitado}
-      onCambiar={(v) => {
-        setValor(v);
-        onCambiar(v);
+      label="Contactado por"
+      options={OPTIONS}
+      value={value}
+      disabled={disabled}
+      onChange={(v) => {
+        setValue(v);
+        onChange(v);
       }}
     />
   );
 }
 
-const boton = () => screen.getByRole("button", { name: /Contactado por/ });
-const activa = () => document.getElementById(screen.getByRole("listbox").getAttribute("aria-activedescendant")!);
+const button = () => screen.getByRole("button", { name: /Contactado por/ });
+const active = () => document.getElementById(screen.getByRole("listbox").getAttribute("aria-activedescendant")!);
 
 describe("Selector", () => {
-  it("muestra la opción elegida y abre la lista con un clic", async () => {
-    render(<Prueba />);
-    expect(boton()).toHaveAccessibleName("Contactado por Todo el equipo");
-    expect(boton()).toHaveAttribute("aria-expanded", "false");
+  it("shows the selected option and opens the list with a click", async () => {
+    render(<Test />);
+    expect(button()).toHaveAccessibleName("Contactado por Todo el equipo");
+    expect(button()).toHaveAttribute("aria-expanded", "false");
 
-    await userEvent.click(boton());
+    await userEvent.click(button());
 
-    expect(boton()).toHaveAttribute("aria-expanded", "true");
+    expect(button()).toHaveAttribute("aria-expanded", "true");
     expect(screen.getAllByRole("option")).toHaveLength(4);
     expect(screen.getByRole("option", { name: /Todo el equipo/ })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("listbox")).toHaveFocus();
   });
 
-  it("elegir con el ratón cambia el valor, cierra y devuelve el foco al botón", async () => {
-    const onCambiar = vi.fn();
-    render(<Prueba onCambiar={onCambiar} />);
-    await userEvent.click(boton());
+  it("choosing with the mouse changes the value, closes and returns focus to the button", async () => {
+    const onChange = vi.fn();
+    render(<Test onChange={onChange} />);
+    await userEvent.click(button());
     await userEvent.click(screen.getByRole("option", { name: /Beatriz Mora/ }));
 
-    expect(onCambiar).toHaveBeenCalledWith("3");
+    expect(onChange).toHaveBeenCalledWith("3");
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
-    expect(boton()).toHaveFocus();
-    expect(boton()).toHaveAccessibleName("Contactado por Beatriz Mora");
+    expect(button()).toHaveFocus();
+    expect(button()).toHaveAccessibleName("Contactado por Beatriz Mora");
   });
 
-  it("volver a elegir la misma opción no avisa un cambio", async () => {
-    const onCambiar = vi.fn();
-    render(<Prueba onCambiar={onCambiar} />);
-    await userEvent.click(boton());
+  it("choosing the same option again does not report a change", async () => {
+    const onChange = vi.fn();
+    render(<Test onChange={onChange} />);
+    await userEvent.click(button());
     await userEvent.click(screen.getByRole("option", { name: /Todo el equipo/ }));
-    expect(onCambiar).not.toHaveBeenCalled();
+    expect(onChange).not.toHaveBeenCalled();
   });
 
-  it("se maneja con el teclado: flechas, Inicio/Fin y Enter", async () => {
-    const onCambiar = vi.fn();
-    render(<Prueba onCambiar={onCambiar} />);
-    boton().focus();
+  it("works with the keyboard: arrows, Home/End and Enter", async () => {
+    const onChange = vi.fn();
+    render(<Test onChange={onChange} />);
+    button().focus();
 
     await userEvent.keyboard("{ArrowDown}");
-    expect(activa()).toHaveTextContent("Todo el equipo");
+    expect(active()).toHaveTextContent("Todo el equipo");
 
     await userEvent.keyboard("{ArrowDown}{ArrowDown}");
-    expect(activa()).toHaveTextContent("Álvaro Díaz");
+    expect(active()).toHaveTextContent("Álvaro Díaz");
 
     await userEvent.keyboard("{End}");
-    expect(activa()).toHaveTextContent("Beatriz Mora");
+    expect(active()).toHaveTextContent("Beatriz Mora");
     await userEvent.keyboard("{ArrowDown}");
-    expect(activa()).toHaveTextContent("Beatriz Mora");
+    expect(active()).toHaveTextContent("Beatriz Mora");
 
     await userEvent.keyboard("{Home}{ArrowUp}");
-    expect(activa()).toHaveTextContent("Todo el equipo");
+    expect(active()).toHaveTextContent("Todo el equipo");
 
     await userEvent.keyboard("{ArrowDown}{Enter}");
-    expect(onCambiar).toHaveBeenCalledWith("1");
+    expect(onChange).toHaveBeenCalledWith("1");
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
   });
 
-  it("una letra salta a la siguiente opción que empieza por ella, sin importar tildes", async () => {
-    render(<Prueba />);
-    boton().focus();
+  it("a letter jumps to the next option that starts with it, regardless of accents", async () => {
+    render(<Test />);
+    button().focus();
     await userEvent.keyboard("{Enter}");
 
     await userEvent.keyboard("a");
-    expect(activa()).toHaveTextContent("Ana Ruiz");
+    expect(active()).toHaveTextContent("Ana Ruiz");
     await userEvent.keyboard("a");
-    expect(activa()).toHaveTextContent("Álvaro Díaz");
+    expect(active()).toHaveTextContent("Álvaro Díaz");
     await userEvent.keyboard("a");
-    expect(activa()).toHaveTextContent("Ana Ruiz");
+    expect(active()).toHaveTextContent("Ana Ruiz");
   });
 
-  it("Escape cierra sin cambiar y un clic afuera también", async () => {
-    const onCambiar = vi.fn();
+  it("Escape closes without changing and so does a click outside", async () => {
+    const onChange = vi.fn();
     render(
       <>
-        <Prueba onCambiar={onCambiar} />
+        <Test onChange={onChange} />
         <p>afuera</p>
       </>,
     );
-    await userEvent.click(boton());
+    await userEvent.click(button());
     await userEvent.keyboard("{ArrowDown}{Escape}");
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
-    expect(boton()).toHaveFocus();
+    expect(button()).toHaveFocus();
 
-    await userEvent.click(boton());
+    await userEvent.click(button());
     await userEvent.click(screen.getByText("afuera"));
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
-    expect(onCambiar).not.toHaveBeenCalled();
+    expect(onChange).not.toHaveBeenCalled();
   });
 
-  it("deshabilitado no se abre", async () => {
-    render(<Prueba deshabilitado />);
-    await userEvent.click(boton());
+  it("disabled does not open", async () => {
+    render(<Test disabled />);
+    await userEvent.click(button());
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
   });
 
-  it("muestra el placeholder si el valor no está entre las opciones", () => {
-    render(<Prueba inicial="99" />);
-    expect(boton()).toHaveTextContent("Elige una opción…");
+  it("shows the placeholder if the value is not among the options", () => {
+    render(<Test initial="99" />);
+    expect(button()).toHaveTextContent("Elige una opción…");
   });
 });

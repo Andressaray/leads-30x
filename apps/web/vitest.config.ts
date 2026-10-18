@@ -1,7 +1,7 @@
 import { defineConfig } from "vitest/config";
 
-// Config aparte de vite.config.ts: el plugin de React Router no se carga en las pruebas
-// (los componentes y rutas se prueban sueltos, con createRoutesStub cuando hace falta router).
+// Config separate from vite.config.ts: the React Router plugin is not loaded in tests
+// (components and routes are tested on their own, with createRoutesStub when a router is needed).
 export default defineConfig({
   resolve: { tsconfigPaths: true },
   test: {
@@ -9,7 +9,7 @@ export default defineConfig({
     root: ".",
     include: ["__test__/**/*.test.{ts,tsx}"],
     setupFiles: ["./__test__/setup/dom.ts"],
-    // La URL base de la API vacía (mismo origen), como en producción.
+    // Empty API base URL (same origin), like in production.
     env: { VITE_API_URL: "" },
     restoreMocks: true,
     unstubGlobals: true,

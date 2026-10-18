@@ -1,61 +1,61 @@
 import { useState } from "react";
-import { PanelContacto } from "@/modules/contacto";
-import { EnvioDapta } from "./EnvioDapta";
-import { Aviso } from "@/shared/ui";
+import { ContactPanel } from "@/modules/contact";
+import { DaptaDispatch } from "./DaptaDispatch";
+import { Notice } from "@/shared/ui";
 import { useLeads } from "../hooks/use-leads";
-import type { FiltrosLeads } from "../types";
-import type { VarianteTabla } from "./LeadRow";
+import type { LeadFilters } from "../types";
+import type { TableVariant } from "./LeadRow";
 import { LeadsTable, LeadsTableSkeleton } from "./LeadsTable";
-import { Paginador } from "./Paginador";
+import { Paginator } from "./Paginator";
 
-/** Tabla de leads paginada con su estado de carga, error y vacío. */
+/** Paginated leads table with its loading, error and empty states. */
 interface LeadsPanelProps {
-  filtros: FiltrosLeads;
-  variante?: VarianteTabla;
-  /** Texto cuando no hay leads. */
-  vacio?: string;
-  /** Página controlada desde afuera; sin valor, la tabla la maneja sola. */
-  pagina?: number;
-  onCambiarPagina?: (pagina: number) => void;
-  /** Muestra el botón para mandar a Dapta los leads de la página. */
-  envioDapta?: boolean;
+  filters: LeadFilters;
+  variant?: TableVariant;
+  /** Text when there are no leads. */
+  empty?: string;
+  /** Page controlled from outside; without a value, the table manages it on its own. */
+  page?: number;
+  onPageChange?: (page: number) => void;
+  /** Shows the button to send the page's leads to Dapta. */
+  daptaDispatch?: boolean;
 }
 
 export function LeadsPanel({
-  filtros,
-  variante = "busqueda",
-  vacio = "No hay leads para mostrar todavía.",
-  pagina,
-  onCambiarPagina,
-  envioDapta = false,
+  filters,
+  variant = "search",
+  empty = "No hay leads para mostrar todavía.",
+  page,
+  onPageChange,
+  daptaDispatch = false,
 }: LeadsPanelProps) {
-  const { cargando, datos, error, setPagina, recargar } = useLeads(filtros, { pagina, onCambiarPagina });
-  // Lead con el panel de contacto abierto.
-  const [abierto, setAbierto] = useState<number | null>(null);
+  const { loading, data, error, setPage, reload } = useLeads(filters, { page, onPageChange });
+  // Lead with the contact panel open.
+  const [isOpen, setIsOpen] = useState<number | null>(null);
 
   return (
     <>
       {error && (
-        <div className="estado">
-          <Aviso tipo="error" titulo="No se pudieron cargar los leads." detalles={[error]} />
+        <div className="status">
+          <Notice type="error" title="No se pudieron cargar los leads." details={[error]} />
         </div>
       )}
       {/* Fuera del "cargando": así el resultado del envío sigue a la vista mientras la tabla se refresca. */}
-      {envioDapta && datos && datos.leads.length > 0 && <EnvioDapta leads={datos.leads} onEnviados={recargar} />}
-      {cargando && <LeadsTableSkeleton variante={variante} filas={Math.min(datos?.leads.length || 6, 10)} />}
-      {!cargando && datos && datos.leads.length === 0 && <p className="vacio">{vacio}</p>}
-      {!cargando && datos && datos.leads.length > 0 && (
+      {daptaDispatch && data && data.leads.length > 0 && <DaptaDispatch leads={data.leads} onSent={reload} />}
+      {loading && <LeadsTableSkeleton variant={variant} rows={Math.min(data?.leads.length || 6, 10)} />}
+      {!loading && data && data.leads.length === 0 && <p className="empty">{empty}</p>}
+      {!loading && data && data.leads.length > 0 && (
         <>
-          <LeadsTable leads={datos.leads} variante={variante} onAbrir={setAbierto} />
-          <Paginador total={datos.total} pagina={datos.pagina} limite={datos.limite} onCambiar={setPagina} />
+          <LeadsTable leads={data.leads} variant={variant} onOpen={setIsOpen} />
+          <Paginator total={data.total} page={data.page} limit={data.limit} onChange={setPage} />
         </>
       )}
-      {abierto !== null && (
-        <PanelContacto
-          leadId={abierto}
-          onCerrar={(huboCambios) => {
-            setAbierto(null);
-            if (huboCambios) recargar();
+      {isOpen !== null && (
+        <ContactPanel
+          leadId={isOpen}
+          onClose={(hasChanges) => {
+            setIsOpen(null);
+            if (hasChanges) reload();
           }}
         />
       )}

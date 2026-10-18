@@ -1,102 +1,102 @@
-// Envoltura de las páginas que piden sesión: si no hay, manda al login (y vuelve después).
+// Wrapper of the pages that require a session: without one, it sends you to login (and back afterwards).
 import { useEffect, useState } from "react";
 import { Navigate, Outlet, redirect, useLocation } from "react-router";
-import { BarraMovil, Sidebar, type NavItem } from "@/shared/layout";
-import { useSesion } from "@/shared/hooks/use-session";
+import { MobileBar, Sidebar, type NavItem } from "@/shared/layout";
+import { useSession } from "@/shared/hooks/use-session";
 import { sessionStore } from "@/shared/lib/session-store";
 import { cn } from "@/shared/lib/cn";
-import { IconoBuscar, IconoContactados, IconoFuentes, IconoMetricas, IconoPlantillas } from "@/shared/ui";
+import { SearchIcon, ContactedIcon, SourcesIcon, MetricsIcon, TemplatesIcon } from "@/shared/ui";
 import type { Route } from "./+types/protected-layout";
-import { cerrarSesion, NOMBRE_ROL } from "./services/auth.service";
+import { logout, ROLE_NAME } from "./services/auth.service";
 
 const NAV: NavItem[] = [
-  { to: "/", label: "Buscar leads", icono: <IconoBuscar /> },
-  { to: "/contactados", label: "Contactados", icono: <IconoContactados /> },
-  { to: "/plantillas", label: "Plantillas", icono: <IconoPlantillas /> },
-  { to: "/metricas", label: "Métricas", icono: <IconoMetricas /> },
-  { to: "/fuentes", label: "Fuentes", icono: <IconoFuentes /> },
+  { to: "/", label: "Buscar leads", icon: <SearchIcon /> },
+  { to: "/contacted", label: "Contactados", icon: <ContactedIcon /> },
+  { to: "/templates", label: "Plantillas", icon: <TemplatesIcon /> },
+  { to: "/metrics", label: "Métricas", icon: <MetricsIcon /> },
+  { to: "/sources", label: "Fuentes", icon: <SourcesIcon /> },
 ];
 
 const MENU_ID = "menu-lateral";
-/** Mismo corte que el CSS: por debajo, el sidebar es un panel que se abre con el botón de menú. */
-const MOVIL = "(max-width: 860px)";
+/** Same breakpoint as the CSS: below it, the sidebar is a panel opened with the menu button. */
+const MOBILE = "(max-width: 860px)";
 
-const aLogin = (ruta: string) => `/login${ruta && ruta !== "/" ? `?volver=${encodeURIComponent(ruta)}` : ""}`;
+const toLogin = (route: string) => `/login${route && route !== "/" ? `?returnTo=${encodeURIComponent(route)}` : ""}`;
 
-// Antes de cargar la página (y sus catálogos) revisa que haya sesión.
+// Before loading the page (and its catalogs) it checks that there is a session.
 export async function clientLoader({ request }: Route.ClientLoaderArgs) {
   if (!sessionStore.get()) {
     const url = new URL(request.url);
-    throw redirect(aLogin(url.pathname + url.search));
+    throw redirect(toLogin(url.pathname + url.search));
   }
   return null;
 }
 
 export function HydrateFallback() {
-  return <p className="estado">Cargando…</p>;
+  return <p className="status">Cargando…</p>;
 }
 
 export default function ProtectedLayout() {
-  const sesion = useSesion();
+  const session = useSession();
   const { pathname, search } = useLocation();
 
-  // Recuerda los filtros de la URL de cada sección (p. ej. ?equipo=1&pagina=2 en Contactados)
-  // para que al volver desde el menú quede como la dejaste.
-  const [filtrosPorRuta, setFiltrosPorRuta] = useState<Record<string, string>>({});
-  if ((filtrosPorRuta[pathname] ?? "") !== search) setFiltrosPorRuta({ ...filtrosPorRuta, [pathname]: search });
+  // Remembers each section's URL filters (e.g. ?team=1&page=2 in Contacted)
+  // so that coming back from the menu leaves it as you left it.
+  const [filtersByRoute, setFiltersByRoute] = useState<Record<string, string>>({});
+  if ((filtersByRoute[pathname] ?? "") !== search) setFiltersByRoute({ ...filtersByRoute, [pathname]: search });
 
-  // Menú lateral en móvil: abierto/cerrado. Mientras está abierto, la página de atrás no se desplaza,
-  // Escape lo cierra, Tab no se sale del panel y, si la pantalla se agranda (rotar, redimensionar), se cierra solo.
-  const [menuAbierto, setMenuAbierto] = useState(false);
+  // Mobile side menu: open/closed. While open, the page behind does not scroll,
+  // Escape closes it, Tab does not leave the panel and, if the screen gets wider (rotate, resize), it closes on its own.
+  const [menuOpen, setMenuOpen] = useState(false);
   useEffect(() => {
-    if (!menuAbierto) return;
-    const consulta = window.matchMedia(MOVIL);
-    const alCambiar = () => !consulta.matches && setMenuAbierto(false);
-    const alTeclear = (e: KeyboardEvent) => {
-      if (e.key === "Escape") return setMenuAbierto(false);
+    if (!menuOpen) return;
+    const query = window.matchMedia(MOBILE);
+    const onChange = () => !query.matches && setMenuOpen(false);
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") return setMenuOpen(false);
       if (e.key !== "Tab") return;
-      // Tab da la vuelta dentro del panel: del último control vuelve al primero (y al revés con Shift).
-      const enfocables = [...(document.getElementById(MENU_ID)?.querySelectorAll<HTMLElement>("a[href], button") ?? [])];
-      const primero = enfocables[0];
-      const ultimo = enfocables.at(-1);
-      const actual = document.activeElement;
-      if (e.shiftKey ? actual === primero || !enfocables.includes(actual as HTMLElement) : actual === ultimo) {
+      // Tab wraps around inside the panel: from the last control it goes back to the first (and the other way with Shift).
+      const focusable = [...(document.getElementById(MENU_ID)?.querySelectorAll<HTMLElement>("a[href], button") ?? [])];
+      const first = focusable[0];
+      const last = focusable.at(-1);
+      const current = document.activeElement;
+      if (e.shiftKey ? current === first || !focusable.includes(current as HTMLElement) : current === last) {
         e.preventDefault();
-        (e.shiftKey ? ultimo : primero)?.focus();
+        (e.shiftKey ? last : first)?.focus();
       }
     };
     const scroll = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    document.getElementById(MENU_ID)?.querySelector<HTMLElement>(".sidebar-enlace.activo, .sidebar-enlace")?.focus();
-    consulta.addEventListener("change", alCambiar);
-    document.addEventListener("keydown", alTeclear);
+    document.getElementById(MENU_ID)?.querySelector<HTMLElement>(".sidebar-link.active, .sidebar-link")?.focus();
+    query.addEventListener("change", onChange);
+    document.addEventListener("keydown", onKeyDown);
     return () => {
       document.body.style.overflow = scroll;
-      consulta.removeEventListener("change", alCambiar);
-      document.removeEventListener("keydown", alTeclear);
-      document.querySelector<HTMLElement>(".barra-movil-menu")?.focus({ preventScroll: true });
+      query.removeEventListener("change", onChange);
+      document.removeEventListener("keydown", onKeyDown);
+      document.querySelector<HTMLElement>(".mobile-bar-menu")?.focus({ preventScroll: true });
     };
-  }, [menuAbierto]);
+  }, [menuOpen]);
 
-  // La sesión se cerró (botón o token vencido): de vuelta al login.
-  if (!sesion) return <Navigate to={aLogin(pathname + search)} replace />;
+  // The session was closed (button or expired token): back to login.
+  if (!session) return <Navigate to={toLogin(pathname + search)} replace />;
 
-  const nav = NAV.map((item) => ({ ...item, to: item.to + (filtrosPorRuta[item.to] ?? "") }));
+  const nav = NAV.map((item) => ({ ...item, to: item.to + (filtersByRoute[item.to] ?? "") }));
 
   return (
-    <div className={cn("app", menuAbierto && "menu-abierto")}>
-      <BarraMovil menuId={MENU_ID} abierto={menuAbierto} inerte={menuAbierto} onAbrir={() => setMenuAbierto(true)} />
+    <div className={cn("app", menuOpen && "menu-open")}>
+      <MobileBar menuId={MENU_ID} isOpen={menuOpen} inert={menuOpen} onOpen={() => setMenuOpen(true)} />
       <Sidebar
         id={MENU_ID}
         nav={nav}
-        usuario={{ nombre: sesion.usuario.fullName, cargo: NOMBRE_ROL[sesion.usuario.rol] }}
-        onCerrarSesion={cerrarSesion}
-        onCerrar={() => setMenuAbierto(false)}
+        user={{ name: session.user.fullName, loaded: ROLE_NAME[session.user.role] }}
+        onLogout={logout}
+        onClose={() => setMenuOpen(false)}
       />
-      <div className="sidebar-fondo" aria-hidden="true" onClick={() => setMenuAbierto(false)} />
+      <div className="sidebar-backdrop" aria-hidden="true" onClick={() => setMenuOpen(false)} />
       {/* Con el menú abierto en móvil, lo de atrás no recibe foco ni clics. */}
-      <main className="app-main" inert={menuAbierto}>
-        <div className="app-contenido">
+      <main className="app-main" inert={menuOpen}>
+        <div className="app-content">
           <Outlet />
         </div>
       </main>

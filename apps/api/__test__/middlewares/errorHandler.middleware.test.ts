@@ -11,14 +11,14 @@ const req = { path: '/x', method: 'GET' } as Request;
 const next = jest.fn() as NextFunction;
 
 describe('errorHandler', () => {
-  it('respeta AppError', () => {
+  it('respects AppError', () => {
     const r = res();
-    errorHandler(new AppError(HttpCode.CONFLICT, 'choque', { a: 1 }), req, r, next);
+    errorHandler(new AppError(HttpCode.CONFLICT, 'conflict', { a: 1 }), req, r, next);
     expect(r.status).toHaveBeenCalledWith(409);
-    expect(r.json).toHaveBeenCalledWith({ error: 'choque', status: 409, details: { a: 1 } });
+    expect(r.json).toHaveBeenCalledWith({ error: 'conflict', status: 409, details: { a: 1 } });
   });
 
-  it('JSON inválido → 400; cualquier otro error → 500 genérico', () => {
+  it('invalid JSON → 400; any other error → generic 500', () => {
     const r1 = res();
     errorHandler({ type: 'entity.parse.failed' }, req, r1, next);
     expect(r1.status).toHaveBeenCalledWith(400);

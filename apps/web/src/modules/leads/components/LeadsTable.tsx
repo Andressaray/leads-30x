@@ -1,21 +1,21 @@
 import type { ReactNode } from "react";
 import { Skeleton } from "@/shared/ui";
 import type { Lead } from "../types";
-import { LeadRow, type VarianteTabla } from "./LeadRow";
+import { LeadRow, type TableVariant } from "./LeadRow";
 
 const BASE = ["Negocio", "NIT", "Contacto", "Dirección", "Fuentes"];
-const COLUMNAS: Record<VarianteTabla, string[]> = {
-  busqueda: [...BASE, "Estado"],
-  contactados: [...BASE, "Contactado por", "Último contacto", "Estado"],
+const COLUMNS: Record<TableVariant, string[]> = {
+  search: [...BASE, "Estado"],
+  contacted: [...BASE, "Contactado por", "Último contacto", "Estado"],
 };
 
-function Tabla({ children, variante = "busqueda" }: { children: ReactNode; variante?: VarianteTabla }) {
+function Table({ children, variant = "search" }: { children: ReactNode; variant?: TableVariant }) {
   return (
-    <div className="tabla">
+    <div className="table">
       <table>
         <thead>
           <tr>
-            {COLUMNAS[variante].map((c) => (
+            {COLUMNS[variant].map((c) => (
               <th key={c}>{c}</th>
             ))}
           </tr>
@@ -28,37 +28,37 @@ function Tabla({ children, variante = "busqueda" }: { children: ReactNode; varia
 
 interface LeadsTableProps {
   leads: Lead[];
-  variante?: VarianteTabla;
-  onAbrir: (id: number) => void;
+  variant?: TableVariant;
+  onOpen: (id: number) => void;
 }
 
-export function LeadsTable({ leads, variante = "busqueda", onAbrir }: LeadsTableProps) {
+export function LeadsTable({ leads, variant = "search", onOpen }: LeadsTableProps) {
   return (
-    <Tabla variante={variante}>
+    <Table variant={variant}>
       {leads.map((l) => (
-        <LeadRow key={l.id} lead={l} variante={variante} onAbrir={onAbrir} />
+        <LeadRow key={l.id} lead={l} variant={variant} onOpen={onOpen} />
       ))}
-    </Tabla>
+    </Table>
   );
 }
 
-const ANCHOS = ["72%", "58%", "84%", "66%", "77%", "61%", "88%", "70%", "63%", "80%"];
+const WIDTHS = ["72%", "58%", "84%", "66%", "77%", "61%", "88%", "70%", "63%", "80%"];
 
-export function LeadsTableSkeleton({ filas = 6, variante = "busqueda" }: { filas?: number; variante?: VarianteTabla }) {
+export function LeadsTableSkeleton({ rows = 6, variant = "search" }: { rows?: number; variant?: TableVariant }) {
   return (
-    <Tabla variante={variante}>
-      {Array.from({ length: filas }, (_, i) => (
+    <Table variant={variant}>
+      {Array.from({ length: rows }, (_, i) => (
         <tr key={i}>
-          <td><Skeleton width={ANCHOS[i % 10]} height={13} /></td>
+          <td><Skeleton width={WIDTHS[i % 10]} height={13} /></td>
           <td><Skeleton width="50%" height={13} /></td>
-          <td><Skeleton width={ANCHOS[(i + 3) % 10]} height={13} /></td>
-          <td><Skeleton width={ANCHOS[(i + 6) % 10]} height={13} /></td>
+          <td><Skeleton width={WIDTHS[(i + 3) % 10]} height={13} /></td>
+          <td><Skeleton width={WIDTHS[(i + 6) % 10]} height={13} /></td>
           <td><Skeleton chip /></td>
           <td><Skeleton chip /></td>
-          {variante === "contactados" && <td><Skeleton width="70%" height={13} /></td>}
-          {variante === "contactados" && <td><Skeleton chip /></td>}
+          {variant === "contacted" && <td><Skeleton width="70%" height={13} /></td>}
+          {variant === "contacted" && <td><Skeleton chip /></td>}
         </tr>
       ))}
-    </Tabla>
+    </Table>
   );
 }

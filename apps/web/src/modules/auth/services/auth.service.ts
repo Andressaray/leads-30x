@@ -1,26 +1,26 @@
 import { http } from "@/shared/lib/http";
 import { sessionStore } from "@/shared/lib/session-store";
-import type { Credenciales, Miembro, Rol, Sesion } from "../types";
+import type { Credentials, Member, Role, Session } from "../types";
 
-/** Inicia sesión y la deja guardada en el navegador. */
-export async function iniciarSesion(datos: Credenciales): Promise<Sesion> {
-  const sesion = await http.post<Sesion>("/api/auth/login", datos);
-  sessionStore.set(sesion);
-  return sesion;
+/** Logs in and keeps the session stored in the browser. */
+export async function login(data: Credentials): Promise<Session> {
+  const session = await http.post<Session>("/api/auth/login", data);
+  sessionStore.set(session);
+  return session;
 }
 
-export function cerrarSesion(): void {
+export function logout(): void {
   sessionStore.clear();
 }
 
-/** Miembros del equipo (sin administradores) con cuántos leads contactó cada uno. */
-export function listarMiembros(signal?: AbortSignal): Promise<Miembro[]> {
-  return http.get<Miembro[]>("/api/usuarios/miembros", undefined, signal);
+/** Team members (no administrators) with how many leads each one contacted. */
+export function listMembers(signal?: AbortSignal): Promise<Member[]> {
+  return http.get<Member[]>("/api/users/members", undefined, signal);
 }
 
-export const NOMBRE_ROL: Record<Rol, string> = { SERVICE: "Servicio", ADMIN: "Administrador" };
+export const ROLE_NAME: Record<Role, string> = { SERVICE: "Servicio", ADMIN: "Administrador" };
 
-/** Solo acepta rutas internas para volver después del login (evita redirecciones a otros sitios). */
-export function rutaSegura(destino: string | null): string {
-  return destino && destino.startsWith("/") && !destino.startsWith("//") && !destino.startsWith("/login") ? destino : "/";
+/** Only accepts internal routes to return to after login (prevents redirects to other sites). */
+export function safePath(destination: string | null): string {
+  return destination && destination.startsWith("/") && !destination.startsWith("//") && !destination.startsWith("/login") ? destination : "/";
 }

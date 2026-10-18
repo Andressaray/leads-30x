@@ -1,47 +1,47 @@
-// Reglas de negocio del login: contraseña con bcrypt y sesión con JWT.
+// Login business rules: password with bcrypt and session with JWT.
 import bcrypt from 'bcryptjs';
 import { environment } from '~config/environment';
 import { AppError, HttpCode } from '~response/index';
-import type { UsuarioSesion } from '~types/auth.types';
-import { firmarToken } from '~utils/token';
-import * as repositorioReal from '../repository/auth.repository';
-import type { LoginDTO, MiembroDTO, SesionDTO, UsuarioDTO } from '../types/auth.types';
+import type { SessionUser } from '~types/auth.types';
+import { signToken } from '~utils/token';
+import * as realRepository from '../repository/auth.repository';
+import type { LoginDTO, MemberDTO, SessionDTO, UserDTO } from '../types/auth.types';
 import type { AuthDomainInterface } from './auth.interface';
 
-export type AuthRepository = typeof repositorioReal;
+export type AuthRepository = typeof realRepository;
 
-const CREDENCIALES_INVALIDAS = 'Correo o contraseña incorrectos.';
-// Hash de relleno: si el correo no existe se compara igual, para que el tiempo de respuesta
-// no revele qué correos están registrados.
-let hashRelleno: string | undefined;
-const relleno = () => (hashRelleno ??= bcrypt.hashSync('sin-usuario', 10));
+const INVALID_CREDENTIALS = 'Correo o contraseña incorrectos.';
+// Dummy hash: if the email does not exist it still compares, so the response time
+// does not reveal which emails are registered.
+let dummyHash: string | undefined;
+const dummy = () => (dummyHash ??= bcrypt.hashSync('no-user', 10));
 
 export class AuthDomain implements AuthDomainInterface {
   constructor(
-    private readonly repo: AuthRepository = repositorioReal,
-    private readonly config = { secreto: environment.jwtSecret, expiraEn: environment.jwtExpiraEn }
+    private readonly repo: AuthRepository = realRepository,
+    private readonly config = { secret: environment.jwtSecret, expiresIn: environment.jwtExpiresIn }
   ) {}
 
-  async login({ email, password }: LoginDTO): Promise<SesionDTO> {
-    const usuario = await this.repo.findUsuarioPorEmail(email.trim().toLowerCase());
-    const valida = await bcrypt.compare(password, usuario?.passwordHash ?? relleno());
-    if (!usuario || !valida) throw new AppError(HttpCode.UNAUTHORIZED, CREDENCIALES_INVALIDAS);
-    if (!usuario.activo) throw new AppError(HttpCode.UNAUTHORIZED, 'Tu usuario está desactivado. Habla con un administrador.');
-    const sesion: UsuarioSesion = { id: usuario.id, email: usuario.email, fullName: usuario.fullName, rol: usuario.rol };
-    return { token: firmarToken(sesion, this.config.secreto, this.config.expiraEn), usuario: sesion };
+  async login({ email, password }: LoginDTO): Promise<SessionDTO> {
+    const user = await this.repo.findUserByEmail(email.trim().toLowerCase());
+    const valid = await bcrypt.compare(password, user?.passwordHash ?? dummy());
+    if (!user || !valid) throw new AppError(HttpCode.UNAUTHORIZED, INVALID_CREDENTIALS);
+    if (!user.active) throw new AppError(HttpCode.UNAUTHORIZED, 'Tu usuario está desactivado. Habla con un administrador.');
+    const session: SessionUser = { id: user.id, email: user.email, fullName: user.fullName, role: user.role };
+    return { token: signToken(session, this.config.secret, this.config.expiresIn), user: session };
   }
 
-  async yo(sesion: UsuarioSesion): Promise<UsuarioDTO> {
-    const usuario = await this.repo.findUsuarioPorId(sesion.id);
-    if (!usuario || !usuario.activo) throw new AppError(HttpCode.UNAUTHORIZED, 'La sesión ya no es válida. Inicia sesión de nuevo.');
-    return usuario;
+  async me(session: SessionUser): Promise<UserDTO> {
+    const user = await this.repo.findUserById(session.id);
+    if (!user || !user.active) throw new AppError(HttpCode.UNAUTHORIZED, 'La sesión ya no es válida. Inicia sesión de nuevo.');
+    return user;
   }
 
-  async listarUsuarios(): Promise<UsuarioDTO[]> {
-    return this.repo.findUsuarios();
+  async listUsers(): Promise<UserDTO[]> {
+    return this.repo.findUsers();
   }
 
-  async listarMiembros(): Promise<MiembroDTO[]> {
-    return this.repo.findMiembros();
+  async listMembers(): Promise<MemberDTO[]> {
+    return this.repo.findMembers();
   }
 }

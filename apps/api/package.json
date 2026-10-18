@@ -1,7 +1,7 @@
 {
   "name": "@leads-colombia/api",
   "version": "2.0.0",
-  "description": "API que busca leads por ciudad en Colombia (DANE, OpenStreetMap, RNT, SECOP II, REPS), los cruza y los guarda sin duplicados en PostgreSQL.",
+  "description": "API that searches leads by city in Colombia (DANE, OpenStreetMap, RNT, SECOP II, REPS), matches them and stores them without duplicates in PostgreSQL.",
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",

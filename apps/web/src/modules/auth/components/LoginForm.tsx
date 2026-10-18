@@ -1,29 +1,29 @@
 import { useState, type FormEvent } from "react";
-import { Aviso } from "@/shared/ui";
-import { mensajeDeError } from "@/shared/lib/http";
-import { iniciarSesion } from "../services/auth.service";
+import { Notice } from "@/shared/ui";
+import { errorMessage } from "@/shared/lib/http";
+import { login } from "../services/auth.service";
 
-export function LoginForm({ onListo }: { onListo: () => void }) {
+export function LoginForm({ onReady }: { onReady: () => void }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [enviando, setEnviando] = useState(false);
+  const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function enviar(e: FormEvent) {
+  async function send(e: FormEvent) {
     e.preventDefault();
-    setEnviando(true);
+    setSending(true);
     setError(null);
     try {
-      await iniciarSesion({ email, password });
-      onListo();
+      await login({ email, password });
+      onReady();
     } catch (err) {
-      setError(mensajeDeError(err));
-      setEnviando(false);
+      setError(errorMessage(err));
+      setSending(false);
     }
   }
 
   return (
-    <form className="login-form" onSubmit={enviar}>
+    <form className="login-form" onSubmit={send}>
       <label>
         Correo
         <input
@@ -45,9 +45,9 @@ export function LoginForm({ onListo }: { onListo: () => void }) {
           onChange={(e) => setPassword(e.target.value)}
         />
       </label>
-      {error && <Aviso tipo="error" titulo={error} className="aviso-compacto" />}
-      <button className="btn-primario" disabled={enviando}>
-        {enviando ? "Entrando…" : "Iniciar sesión"}
+      {error && <Notice type="error" title={error} className="notice-compact" />}
+      <button className="btn-primary" disabled={sending}>
+        {sending ? "Entrando…" : "Iniciar sesión"}
       </button>
     </form>
   );

@@ -1,26 +1,26 @@
-import type { Rol, UsuarioSesion } from '~types/auth.types';
+import type { Role, SessionUser } from '~types/auth.types';
 
-export interface UsuarioDTO {
+export interface UserDTO {
   id: number;
   email: string;
   fullName: string;
-  rol: Rol;
-  activo: boolean;
+  role: Role;
+  active: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
 
-/** Integrante del equipo comercial (sin administradores), para filtrar "Contactados" por persona. */
-export interface MiembroDTO {
+/** Member of the sales team (no administrators), to filter "Contacted" by person. */
+export interface MemberDTO {
   id: number;
   fullName: string;
   email: string;
-  /** Leads que tiene asignados por haberles dado "Contactar". */
-  contactados: number;
+  /** Leads assigned to them because they pressed "Contact". */
+  contacted: number;
 }
 
-/** Usuario con su hash: solo lo usa el dominio para validar la contraseña, nunca sale por HTTP. */
-export interface UsuarioConHashDTO extends UsuarioDTO {
+/** User with their hash: only the domain uses it to validate the password, it never goes out over HTTP. */
+export interface UserWithHashDTO extends UserDTO {
   passwordHash: string;
 }
 
@@ -29,7 +29,7 @@ export interface LoginDTO {
   password: string;
 }
 
-export interface SesionDTO {
+export interface SessionDTO {
   token: string;
-  usuario: UsuarioSesion;
+  user: SessionUser;
 }

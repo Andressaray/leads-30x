@@ -23,29 +23,29 @@ export function Layout({ children }: { children: ReactNode }) {
   );
 }
 
-// Cada página decide su marco: el login va centrado y las páginas con sesión llevan el menú lateral.
+// Each page decides its frame: login is centered and pages with a session have the side menu.
 export default function App() {
   return <Outlet />;
 }
 
 export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
-  let titulo = "Algo salió mal";
-  let detalle = "Ocurrió un error inesperado.";
+  let title = "Algo salió mal";
+  let detail = "Ocurrió un error inesperado.";
   let stack: string | undefined;
 
   if (isRouteErrorResponse(error)) {
-    titulo = error.status === 404 ? "Página no encontrada" : `Error ${error.status}`;
-    detalle = error.status === 404 ? "La página que buscas no existe." : error.statusText || detalle;
+    title = error.status === 404 ? "Página no encontrada" : `Error ${error.status}`;
+    detail = error.status === 404 ? "La página que buscas no existe." : error.statusText || detail;
   } else if (import.meta.env.DEV && error instanceof Error) {
-    detalle = error.message;
+    detail = error.message;
     stack = error.stack;
   }
 
   return (
     <Container>
       <h1>{SITE_NAME}</h1>
-      <h2>{titulo}</h2>
-      <p>{detalle}</p>
+      <h2>{title}</h2>
+      <p>{detail}</p>
       {stack && (
         <pre style={{ overflowX: "auto" }}>
           <code>{stack}</code>

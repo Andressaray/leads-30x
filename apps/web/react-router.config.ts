@@ -1,10 +1,10 @@
 import type { Config } from "@react-router/dev/config";
 
 export default {
-  // La estructura de la skill vive en src/ (no en app/).
+  // The skill's structure lives in src/ (not in app/).
   appDirectory: "src",
-  // Herramienta interna: los datos dependen de la sesión del usuario y de la base, así que se cargan
-  // en el navegador (clientLoader). Las páginas se pre-renderizan en build como cascarón.
+  // Internal tool: the data depends on the user's session and the database, so it is loaded
+  // in the browser (clientLoader). Pages are pre-rendered at build time as a shell.
   ssr: false,
-  prerender: ["/", "/login", "/contactados", "/plantillas", "/metricas", "/robots.txt"],
+  prerender: ["/", "/login", "/contacted", "/templates", "/metrics", "/robots.txt"],
 } satisfies Config;

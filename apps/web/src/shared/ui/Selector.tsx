@@ -1,33 +1,33 @@
-// Lista desplegable con el estilo de la app (avatar, detalle, marca de elegido). Accesible:
-// botón + listbox con flechas, Inicio/Fin, Enter/Espacio, Escape y búsqueda por la primera letra.
+// Dropdown list with the app's style (avatar, detail, selected mark). Accessible:
+// button + listbox with arrows, Home/End, Enter/Space, Escape and first-letter search.
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { cn } from "@/shared/lib/cn";
 
-export interface OpcionSelector {
-  valor: string;
-  etiqueta: string;
-  /** Segunda línea, más tenue. */
-  detalle?: string;
-  /** Va antes del texto (avatar, ícono). */
-  inicio?: ReactNode;
-  /** Va al final de la fila (etiqueta "Tú", conteo…). */
-  fin?: ReactNode;
-  /** Dibuja una línea divisoria después de esta opción. */
-  separada?: boolean;
+export interface SelectorOption {
+  value: string;
+  label: string;
+  /** Second line, more muted. */
+  detail?: string;
+  /** Goes before the text (avatar, icon). */
+  start?: ReactNode;
+  /** Goes at the end of the row ("Tú" label, count…). */
+  end?: ReactNode;
+  /** Draws a divider line after this option. */
+  separated?: boolean;
 }
 
 interface SelectorProps {
-  etiqueta: string;
-  opciones: OpcionSelector[];
-  valor: string;
-  onCambiar: (valor: string) => void;
-  deshabilitado?: boolean;
-  /** Texto del botón cuando el valor no está entre las opciones. */
+  label: string;
+  options: SelectorOption[];
+  value: string;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+  /** Button text when the value is not among the options. */
   placeholder?: string;
   className?: string;
 }
 
-const sinTildes = (s: string) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+const stripAccents = (s: string) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
 
 const Chevron = () => (
   <svg className="selector-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -41,104 +41,104 @@ const Check = () => (
   </svg>
 );
 
-function Texto({ opcion }: { opcion: OpcionSelector }) {
+function Text({ option }: { option: SelectorOption }) {
   return (
-    <span className="selector-texto">
-      <span className="selector-titulo">{opcion.etiqueta}</span>
-      {opcion.detalle && <span className="selector-detalle">{opcion.detalle}</span>}
+    <span className="selector-text">
+      <span className="selector-title">{option.label}</span>
+      {option.detail && <span className="selector-detail">{option.detail}</span>}
     </span>
   );
 }
 
-export function Selector({ etiqueta, opciones, valor, onCambiar, deshabilitado, placeholder = "Elige una opción…", className }: SelectorProps) {
+export function Selector({ label, options, value, onChange, disabled, placeholder = "Elige una opción…", className }: SelectorProps) {
   const id = useId();
-  const [abierto, setAbierto] = useState(false);
-  const [activo, setActivo] = useState(0);
-  const raiz = useRef<HTMLDivElement>(null);
-  const boton = useRef<HTMLButtonElement>(null);
-  const lista = useRef<HTMLUListElement>(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const [active, setActive] = useState(0);
+  const root = useRef<HTMLDivElement>(null);
+  const button = useRef<HTMLButtonElement>(null);
+  const list = useRef<HTMLUListElement>(null);
 
-  const elegida = opciones.find((o) => o.valor === valor);
-  const idOpcion = (i: number) => `${id}-op-${i}`;
+  const selected = options.find((o) => o.value === value);
+  const optionId = (i: number) => `${id}-op-${i}`;
 
-  // Al abrir: foco en la lista y cierre con un clic afuera.
+  // On open: focus on the list and close with a click outside.
   useEffect(() => {
-    if (!abierto) return;
-    lista.current?.focus();
-    const fuera = (e: PointerEvent) => {
-      if (!raiz.current?.contains(e.target as Node)) setAbierto(false);
+    if (!isOpen) return;
+    list.current?.focus();
+    const outside = (e: PointerEvent) => {
+      if (!root.current?.contains(e.target as Node)) setIsOpen(false);
     };
-    document.addEventListener("pointerdown", fuera);
-    return () => document.removeEventListener("pointerdown", fuera);
-  }, [abierto]);
+    document.addEventListener("pointerdown", outside);
+    return () => document.removeEventListener("pointerdown", outside);
+  }, [isOpen]);
 
-  // La opción activa siempre a la vista.
+  // The active option always in view.
   useEffect(() => {
-    if (abierto) document.getElementById(`${id}-op-${activo}`)?.scrollIntoView({ block: "nearest" });
-  }, [abierto, activo, id]);
+    if (isOpen) document.getElementById(`${id}-op-${active}`)?.scrollIntoView({ block: "nearest" });
+  }, [isOpen, active, id]);
 
-  function abrir() {
-    setActivo(Math.max(0, opciones.findIndex((o) => o.valor === valor)));
-    setAbierto(true);
+  function open() {
+    setActive(Math.max(0, options.findIndex((o) => o.value === value)));
+    setIsOpen(true);
   }
 
-  function cerrar(enfocarBoton = true) {
-    setAbierto(false);
-    if (enfocarBoton) boton.current?.focus();
+  function close(focusButton = true) {
+    setIsOpen(false);
+    if (focusButton) button.current?.focus();
   }
 
-  function elegir(i: number) {
-    const o = opciones[i];
-    if (o && o.valor !== valor) onCambiar(o.valor);
-    cerrar();
+  function choose(i: number) {
+    const o = options[i];
+    if (o && o.value !== value) onChange(o.value);
+    close();
   }
 
-  function teclaBoton(e: KeyboardEvent<HTMLButtonElement>) {
+  function buttonKeyDown(e: KeyboardEvent<HTMLButtonElement>) {
     if (["ArrowDown", "ArrowUp", "Enter", " "].includes(e.key)) {
       e.preventDefault();
-      abrir();
+      open();
     }
   }
 
-  function teclaLista(e: KeyboardEvent<HTMLUListElement>) {
-    const ultimo = opciones.length - 1;
+  function listKeyDown(e: KeyboardEvent<HTMLUListElement>) {
+    const last = options.length - 1;
     switch (e.key) {
       case "ArrowDown":
         e.preventDefault();
-        setActivo((i) => Math.min(ultimo, i + 1));
+        setActive((i) => Math.min(last, i + 1));
         break;
       case "ArrowUp":
         e.preventDefault();
-        setActivo((i) => Math.max(0, i - 1));
+        setActive((i) => Math.max(0, i - 1));
         break;
       case "Home":
         e.preventDefault();
-        setActivo(0);
+        setActive(0);
         break;
       case "End":
         e.preventDefault();
-        setActivo(ultimo);
+        setActive(last);
         break;
       case "Enter":
       case " ":
         e.preventDefault();
-        elegir(activo);
+        choose(active);
         break;
       case "Escape":
         e.preventDefault();
-        cerrar();
+        close();
         break;
       case "Tab":
-        cerrar(false);
+        close(false);
         break;
       default:
         if (e.key.length === 1 && /\S/.test(e.key)) {
-          // Salta a la siguiente opción que empiece por esa letra.
-          const letra = sinTildes(e.key);
-          for (let paso = 1; paso <= opciones.length; paso++) {
-            const i = (activo + paso) % opciones.length;
-            if (sinTildes(opciones[i].etiqueta).startsWith(letra)) {
-              setActivo(i);
+          // Jumps to the next option that starts with that letter.
+          const letter = stripAccents(e.key);
+          for (let step = 1; step <= options.length; step++) {
+            const i = (active + step) % options.length;
+            if (stripAccents(options[i].label).startsWith(letter)) {
+              setActive(i);
               break;
             }
           }
@@ -147,54 +147,54 @@ export function Selector({ etiqueta, opciones, valor, onCambiar, deshabilitado, 
   }
 
   return (
-    <div ref={raiz} className={cn("selector", abierto && "abierto", className)}>
-      <span className="selector-etiqueta" id={`${id}-etq`}>
-        {etiqueta}
+    <div ref={root} className={cn("selector", isOpen && "open", className)}>
+      <span className="selector-label" id={`${id}-etq`}>
+        {label}
       </span>
       <button
-        ref={boton}
+        ref={button}
         type="button"
-        className="selector-boton"
+        className="selector-button"
         aria-haspopup="listbox"
-        aria-expanded={abierto}
-        aria-controls={abierto ? `${id}-lista` : undefined}
+        aria-expanded={isOpen}
+        aria-controls={isOpen ? `${id}-lista` : undefined}
         aria-labelledby={`${id}-etq ${id}-val`}
-        disabled={deshabilitado}
-        onClick={() => (abierto ? cerrar() : abrir())}
-        onKeyDown={teclaBoton}
+        disabled={disabled}
+        onClick={() => (isOpen ? close() : open())}
+        onKeyDown={buttonKeyDown}
       >
-        {elegida?.inicio}
-        <span id={`${id}-val`} className="selector-valor">
-          {elegida ? <Texto opcion={elegida} /> : <span className="selector-titulo selector-placeholder">{placeholder}</span>}
+        {selected?.start}
+        <span id={`${id}-val`} className="selector-value">
+          {selected ? <Text option={selected} /> : <span className="selector-title selector-placeholder">{placeholder}</span>}
         </span>
-        {elegida?.fin}
+        {selected?.end}
         <Chevron />
       </button>
 
-      {abierto && (
+      {isOpen && (
         <ul
-          ref={lista}
+          ref={list}
           id={`${id}-lista`}
           role="listbox"
           tabIndex={-1}
-          className="selector-lista"
+          className="selector-list"
           aria-labelledby={`${id}-etq`}
-          aria-activedescendant={idOpcion(activo)}
-          onKeyDown={teclaLista}
+          aria-activedescendant={optionId(active)}
+          onKeyDown={listKeyDown}
         >
-          {opciones.map((o, i) => (
+          {options.map((o, i) => (
             <li
-              key={o.valor}
-              id={idOpcion(i)}
+              key={o.value}
+              id={optionId(i)}
               role="option"
-              aria-selected={o.valor === valor}
-              className={cn("selector-opcion", i === activo && "activa", o.valor === valor && "elegida", o.separada && "separada")}
-              onPointerMove={() => i !== activo && setActivo(i)}
-              onClick={() => elegir(i)}
+              aria-selected={o.value === value}
+              className={cn("selector-option", i === active && "active", o.value === value && "selected", o.separated && "separated")}
+              onPointerMove={() => i !== active && setActive(i)}
+              onClick={() => choose(i)}
             >
-              {o.inicio}
-              <Texto opcion={o} />
-              {o.fin}
+              {o.start}
+              <Text option={o} />
+              {o.end}
               <Check />
             </li>
           ))}

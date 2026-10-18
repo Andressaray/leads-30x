@@ -1,15 +1,15 @@
-export type { Rol, Sesion, UsuarioSesion } from "@/shared/lib/session-store";
+export type { Role, Session, SessionUser } from "@/shared/lib/session-store";
 
-/** GET /api/usuarios/miembros: usuarios activos sin rol ADMIN. */
-export interface Miembro {
+/** GET /api/users/members: active users without the ADMIN role. */
+export interface Member {
   id: number;
   fullName: string;
   email: string;
-  /** Leads que tiene asignados por haberles dado "Contactar". */
-  contactados: number;
+  /** Leads assigned to them because they pressed "Contact". */
+  contacted: number;
 }
 
-export interface Credenciales {
+export interface Credentials {
   email: string;
   password: string;
 }

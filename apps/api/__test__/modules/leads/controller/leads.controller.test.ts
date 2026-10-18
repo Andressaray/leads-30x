@@ -1,147 +1,147 @@
-// Pruebas de integración de la capa HTTP de leads (dominio simulado).
+// Integration tests of the leads HTTP layer (simulated domain).
 import request from 'supertest';
 import { ANDRES, bearer } from '../../../setup/auth';
 import { LeadsDomain } from 'modules/leads/domain/leads.domain';
 import { AppError, HttpCode } from '~response/index';
-import { crearApp } from '~config/app';
+import { createApp } from '~config/app';
 
 jest.mock('modules/leads/domain/leads.domain');
-jest.mock('modules/busquedas/domain/busquedas.domain');
+jest.mock('modules/searches/domain/searches.domain');
 
-const app = crearApp();
-// Todas las rutas /api piden sesión: este agente manda el token de Andres en cada petición.
+const app = createApp();
+// Every /api route requires a session: this agent sends Andres's token on every request.
 const api = request.agent(app).set('Authorization', bearer());
-const dominio = (LeadsDomain as jest.MockedClass<typeof LeadsDomain>).mock.instances[0] as jest.Mocked<LeadsDomain>;
+const domain = (LeadsDomain as jest.MockedClass<typeof LeadsDomain>).mock.instances[0] as jest.Mocked<LeadsDomain>;
 
 describe('GET /api/leads', () => {
-  it('responde con el sobre { data, status } y pasa los filtros convertidos', async () => {
-    dominio.listar.mockResolvedValue({ total: 0, pagina: 2, limite: 10, leads: [] });
-    const r = await api.get('/api/leads?departamento=antioquia&contactable=true&limite=10&pagina=2&fuente=rnt');
+  it('responds with the { data, status } envelope and passes the converted filters', async () => {
+    domain.list.mockResolvedValue({ total: 0, page: 2, limit: 10, leads: [] });
+    const r = await api.get('/api/leads?department=antioquia&contactable=true&limit=10&page=2&source=rnt');
     expect(r.status).toBe(200);
-    expect(r.body).toEqual({ status: 200, data: { total: 0, pagina: 2, limite: 10, leads: [] } });
-    expect(dominio.listar).toHaveBeenCalledWith(
-      expect.objectContaining({ codDpto: '05', contactable: true, limite: 10, pagina: 2, fuente: 'rnt' })
+    expect(r.body).toEqual({ status: 200, data: { total: 0, page: 2, limit: 10, leads: [] } });
+    expect(domain.list).toHaveBeenCalledWith(
+      expect.objectContaining({ departmentCode: '05', contactable: true, limit: 10, page: 2, source: 'rnt' })
     );
   });
 
-  it('mios=true filtra por el usuario de la sesión', async () => {
-    dominio.listar.mockResolvedValue({ total: 0, pagina: 1, limite: 100, leads: [] });
-    await api.get('/api/leads?contactado=true&mios=true');
-    expect(dominio.listar).toHaveBeenCalledWith(expect.objectContaining({ contactado: true, contactadoPorId: ANDRES.id }));
+  it('mine=true filters by the session user', async () => {
+    domain.list.mockResolvedValue({ total: 0, page: 1, limit: 100, leads: [] });
+    await api.get('/api/leads?contacted=true&mine=true');
+    expect(domain.list).toHaveBeenCalledWith(expect.objectContaining({ contacted: true, contactedById: ANDRES.id }));
   });
 
-  it('sin mios trae los de todos; contactado_por filtra por un compañero', async () => {
-    dominio.listar.mockResolvedValue({ total: 0, pagina: 1, limite: 100, leads: [] });
-    await api.get('/api/leads?contactado=true');
-    expect(dominio.listar).toHaveBeenLastCalledWith(expect.objectContaining({ contactado: true, contactadoPorId: undefined }));
-    await api.get('/api/leads?contactado=true&contactado_por=2');
-    expect(dominio.listar).toHaveBeenLastCalledWith(expect.objectContaining({ contactadoPorId: 2 }));
+  it('without mine it returns everyone\'s; contacted_by filters by a teammate', async () => {
+    domain.list.mockResolvedValue({ total: 0, page: 1, limit: 100, leads: [] });
+    await api.get('/api/leads?contacted=true');
+    expect(domain.list).toHaveBeenLastCalledWith(expect.objectContaining({ contacted: true, contactedById: undefined }));
+    await api.get('/api/leads?contacted=true&contacted_by=2');
+    expect(domain.list).toHaveBeenLastCalledWith(expect.objectContaining({ contactedById: 2 }));
   });
 
-  it('sin token o con token inválido → 401', async () => {
+  it('without a token or with an invalid token → 401', async () => {
     expect((await request(app).get('/api/leads')).status).toBe(401);
     const r = await request(app).get('/api/leads').set('Authorization', 'Bearer no-es-un-jwt');
     expect(r.status).toBe(401);
-    expect(dominio.listar).not.toHaveBeenCalled();
+    expect(domain.list).not.toHaveBeenCalled();
   });
 
   it.each([
-    ['limite=0', 'limite'],
-    ['contactado_por=abc', 'contactado_por'],
-    ['departamento=narnia', 'departamento'],
-    ['fuente=google', 'fuente'],
-    ['municipio=5615', 'municipio'],
-  ])('rechaza %s con 400', async (qs, campo) => {
+    ['limit=0', 'limit'],
+    ['contacted_by=abc', 'contacted_by'],
+    ['department=narnia', 'department'],
+    ['source=google', 'source'],
+    ['municipality=5615', 'municipality'],
+  ])('rejects %s with 400', async (qs, field) => {
     const r = await api.get(`/api/leads?${qs}`);
     expect(r.status).toBe(400);
-    expect(r.body).toMatchObject({ status: 400, details: { campo } });
-    expect(dominio.listar).not.toHaveBeenCalled();
+    expect(r.body).toMatchObject({ status: 400, details: { field } });
+    expect(domain.list).not.toHaveBeenCalled();
   });
 });
 
 describe('GET /api/leads/:id', () => {
-  it('traduce AppError a su código', async () => {
-    dominio.obtener.mockRejectedValue(new AppError(HttpCode.NOT_FOUND, 'Lead no encontrado.'));
+  it('translates AppError into its status code', async () => {
+    domain.get.mockRejectedValue(new AppError(HttpCode.NOT_FOUND, 'Lead no encontrado.'));
     const r = await api.get('/api/leads/9');
     expect(r.status).toBe(404);
     expect(r.body).toEqual({ status: 404, error: 'Lead no encontrado.' });
   });
 
-  it('un error inesperado responde 500 genérico', async () => {
-    dominio.obtener.mockRejectedValue(new Error('se cayó la base'));
+  it('an unexpected error responds with a generic 500', async () => {
+    domain.get.mockRejectedValue(new Error('se cayó la base'));
     const r = await api.get('/api/leads/9');
     expect(r.status).toBe(500);
     expect(r.body).toEqual({ status: 500, error: 'Unknown error' });
   });
 
-  it('id no numérico → 400', async () => {
+  it('non-numeric id → 400', async () => {
     expect((await api.get('/api/leads/abc')).status).toBe(400);
   });
 });
 
-describe('POST /api/leads/:id/contactar', () => {
-  it('marca el lead como contactado y responde con el sobre { data, status }', async () => {
-    const lead = { id: 5, contactado: true, contactadoEn: new Date('2026-10-17T00:00:00.000Z') };
-    dominio.marcarContactado.mockResolvedValue(lead as never);
-    const r = await api.post('/api/leads/5/contactar');
+describe('POST /api/leads/:id/mark-contacted', () => {
+  it('marks the lead as contacted and responds with the { data, status } envelope', async () => {
+    const lead = { id: 5, contacted: true, contactedAt: new Date('2026-10-17T00:00:00.000Z') };
+    domain.markContacted.mockResolvedValue(lead as never);
+    const r = await api.post('/api/leads/5/mark-contacted');
     expect(r.status).toBe(200);
     expect(r.body.status).toBe(200);
-    expect(dominio.marcarContactado).toHaveBeenCalledWith(5, ANDRES.id);
+    expect(domain.markContacted).toHaveBeenCalledWith(5, ANDRES.id);
   });
 
-  it('si ya lo contactó otra persona → 409 con quién fue', async () => {
-    const quien = { id: 2, fullName: 'Camila Rojas', email: 'camila@gmail.com' };
-    dominio.marcarContactado.mockRejectedValue(
-      new AppError(HttpCode.CONFLICT, 'Este lead ya lo contactó Camila Rojas.', { contactadoPor: quien, contactadoEn: null })
+  it('if someone else already contacted it → 409 with who it was', async () => {
+    const who = { id: 2, fullName: 'Camila Rojas', email: 'camila@gmail.com' };
+    domain.markContacted.mockRejectedValue(
+      new AppError(HttpCode.CONFLICT, 'Este lead ya lo contactó Camila Rojas.', { contactedBy: who, contactedAt: null })
     );
-    const r = await api.post('/api/leads/5/contactar');
+    const r = await api.post('/api/leads/5/mark-contacted');
     expect(r.status).toBe(409);
-    expect(r.body).toMatchObject({ error: 'Este lead ya lo contactó Camila Rojas.', details: { contactadoPor: quien } });
+    expect(r.body).toMatchObject({ error: 'Este lead ya lo contactó Camila Rojas.', details: { contactedBy: who } });
   });
 
-  it('sin sesión → 401 y no marca nada', async () => {
-    const r = await request(app).post('/api/leads/5/contactar');
+  it('without a session → 401 and nothing is marked', async () => {
+    const r = await request(app).post('/api/leads/5/mark-contacted');
     expect(r.status).toBe(401);
-    expect(dominio.marcarContactado).not.toHaveBeenCalled();
+    expect(domain.markContacted).not.toHaveBeenCalled();
   });
 
-  it('id no numérico → 400', async () => {
-    const r = await api.post('/api/leads/abc/contactar');
+  it('non-numeric id → 400', async () => {
+    const r = await api.post('/api/leads/abc/mark-contacted');
     expect(r.status).toBe(400);
-    expect(dominio.marcarContactado).not.toHaveBeenCalled();
+    expect(domain.markContacted).not.toHaveBeenCalled();
   });
 
-  it('lead inexistente → 404', async () => {
-    dominio.marcarContactado.mockRejectedValue(new AppError(HttpCode.NOT_FOUND, 'Lead no encontrado.'));
-    const r = await api.post('/api/leads/999/contactar');
+  it('unknown lead → 404', async () => {
+    domain.markContacted.mockRejectedValue(new AppError(HttpCode.NOT_FOUND, 'Lead no encontrado.'));
+    const r = await api.post('/api/leads/999/mark-contacted');
     expect(r.status).toBe(404);
     expect(r.body).toEqual({ status: 404, error: 'Lead no encontrado.' });
   });
 });
 
 describe('GET /api/leads/export.csv', () => {
-  it('descarga un CSV', async () => {
-    dominio.exportarCsv.mockResolvedValue('﻿id,nombre\n1,Hotel\n');
-    const r = await api.get('/api/leads/export.csv?busqueda=3');
+  it('downloads a CSV', async () => {
+    domain.exportCsv.mockResolvedValue('﻿id,nombre\n1,Hotel\n');
+    const r = await api.get('/api/leads/export.csv?search=3');
     expect(r.status).toBe(200);
     expect(r.headers['content-type']).toContain('text/csv');
     expect(r.headers['content-disposition']).toContain('leads.csv');
-    expect(dominio.exportarCsv).toHaveBeenCalledWith(expect.objectContaining({ busquedaId: 3, limite: 100000 }));
+    expect(domain.exportCsv).toHaveBeenCalledWith(expect.objectContaining({ searchId: 3, limit: 100000 }));
   });
 });
 
-describe('rutas generales', () => {
-  it('ruta inexistente → 404 con el sobre de error', async () => {
+describe('general routes', () => {
+  it('unknown route → 404 with the error envelope', async () => {
     const r = await api.get('/api/nada');
     expect(r.status).toBe(404);
     expect(r.body.status).toBe(404);
   });
 
-  it('expone la documentación OpenAPI', async () => {
+  it('exposes the OpenAPI documentation', async () => {
     const r = await api.get('/api/docs.json');
     expect(r.status).toBe(200);
     expect(Object.keys(r.body.paths)).toEqual(
-      expect.arrayContaining(['/busquedas', '/leads', '/leads/{id}', '/catalogo/categorias', '/auth/login', '/auth/me', '/usuarios', '/usuarios/miembros'])
+      expect.arrayContaining(['/searches', '/leads', '/leads/{id}', '/catalog/categories', '/auth/login', '/auth/me', '/users', '/users/members'])
     );
   });
 });

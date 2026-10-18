@@ -1,55 +1,55 @@
 /**
- * Caché en memoria con vencimiento (TTL) y tamaño máximo. Al llenarse descarta
- * la entrada más antigua. Se pierde al reiniciar el servidor, a propósito: los
- * leads ya quedan guardados en la base; esto solo evita volver a pedirle lo
- * mismo a las fuentes públicas durante unas horas.
+ * In-memory cache with expiration (TTL) and a maximum size. When full it drops
+ * the oldest entry. It is lost when the server restarts, on purpose: the
+ * leads are already stored in the database; this only avoids asking the
+ * public sources for the same thing for a few hours.
  */
 export class CacheTtl<V> {
-  private readonly datos = new Map<string, { valor: V; vence: number }>();
+  private readonly data = new Map<string, { value: V; expires: number }>();
 
   constructor(
     private readonly ttlMs: number,
-    private readonly maxEntradas = 100,
-    private readonly ahora: () => number = Date.now
+    private readonly maxEntries = 100,
+    private readonly now: () => number = Date.now
   ) {}
 
-  get activa(): boolean {
-    return this.ttlMs > 0 && this.maxEntradas > 0;
+  get active(): boolean {
+    return this.ttlMs > 0 && this.maxEntries > 0;
   }
 
-  get(clave: string): V | undefined {
-    const e = this.datos.get(clave);
+  get(key: string): V | undefined {
+    const e = this.data.get(key);
     if (!e) return undefined;
-    if (e.vence <= this.ahora()) {
-      this.datos.delete(clave);
+    if (e.expires <= this.now()) {
+      this.data.delete(key);
       return undefined;
     }
-    return e.valor;
+    return e.value;
   }
 
-  set(clave: string, valor: V): void {
-    if (!this.activa) return;
-    this.datos.delete(clave);
-    while (this.datos.size >= this.maxEntradas) {
-      const masAntigua = this.datos.keys().next().value;
-      if (masAntigua === undefined) break;
-      this.datos.delete(masAntigua);
+  set(key: string, value: V): void {
+    if (!this.active) return;
+    this.data.delete(key);
+    while (this.data.size >= this.maxEntries) {
+      const oldest = this.data.keys().next().value;
+      if (oldest === undefined) break;
+      this.data.delete(oldest);
     }
-    this.datos.set(clave, { valor, vence: this.ahora() + this.ttlMs });
+    this.data.set(key, { value, expires: this.now() + this.ttlMs });
   }
 
-  get tamano(): number {
-    return this.datos.size;
+  get size(): number {
+    return this.data.size;
   }
 }
 
-/** Rechaza si la promesa no termina en `ms`. La tarea de fondo sigue, pero ya no se espera. */
-export function conLimiteDeTiempo<T>(promesa: Promise<T>, ms: number, mensaje: string): Promise<T> {
-  if (!(ms > 0) || !Number.isFinite(ms)) return promesa;
-  let temporizador: NodeJS.Timeout | undefined;
-  const limite = new Promise<never>((_, rechazar) => {
-    temporizador = setTimeout(() => rechazar(new Error(mensaje)), ms);
-    temporizador.unref?.();
+/** Rejects if the promise does not finish within `ms`. The background task keeps going, but it is no longer awaited. */
+export function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  if (!(ms > 0) || !Number.isFinite(ms)) return promise;
+  let timer: NodeJS.Timeout | undefined;
+  const limit = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), ms);
+    timer.unref?.();
   });
-  return Promise.race([promesa, limite]).finally(() => clearTimeout(temporizador));
+  return Promise.race([promise, limit]).finally(() => clearTimeout(timer));
 }

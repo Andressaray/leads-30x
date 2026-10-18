@@ -1,3 +1,3 @@
-export function cn(...clases: Array<string | false | null | undefined>): string {
-  return clases.filter(Boolean).join(" ");
+export function cn(...classes: Array<string | false | null | undefined>): string {
+  return classes.filter(Boolean).join(" ");
 }

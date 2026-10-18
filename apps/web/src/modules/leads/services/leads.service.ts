@@ -1,14 +1,14 @@
 import { http, requestBlob } from "@/shared/lib/http";
-import { descargarBlob } from "@/shared/lib/download";
-import type { FiltrosLeads, ListadoLeads } from "../types";
+import { downloadBlob } from "@/shared/lib/download";
+import type { LeadFilters, LeadList } from "../types";
 
-export const LIMITE_TABLA = 20;
+export const TABLE_LIMIT = 20;
 
-export function listarLeads(filtros: FiltrosLeads, pagina: number, signal?: AbortSignal): Promise<ListadoLeads> {
-  return http.get<ListadoLeads>("/api/leads", { ...filtros, pagina, limite: LIMITE_TABLA }, signal);
+export function listLeads(filters: LeadFilters, page: number, signal?: AbortSignal): Promise<LeadList> {
+  return http.get<LeadList>("/api/leads", { ...filters, page, limit: TABLE_LIMIT }, signal);
 }
 
-export async function descargarCsvBusqueda(busquedaId: number): Promise<void> {
-  const blob = await requestBlob("/api/leads/export.csv", { query: { busqueda: busquedaId } });
-  descargarBlob(blob, `leads-busqueda-${busquedaId}.csv`);
+export async function downloadSearchCsv(searchId: number): Promise<void> {
+  const blob = await requestBlob("/api/leads/export.csv", { query: { search: searchId } });
+  downloadBlob(blob, `leads-busqueda-${searchId}.csv`);
 }

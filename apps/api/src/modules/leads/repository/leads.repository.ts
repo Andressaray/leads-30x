@@ -1,85 +1,85 @@
-// Acceso a datos de leads. Una función por consulta, sin reglas de negocio.
+// Lead data access. One function per query, no business rules.
 
 import { prisma, type Prisma } from '~config/db/client';
-import type { NombreFuente, Telefono } from '~types/fuente.types';
+import type { SourceName, Phone } from '~types/source.types';
 import type {
-  AparicionDTO,
-  ClaveDTO,
-  ContactadoPorDTO,
+  OccurrenceDTO,
+  KeyDTO,
+  ContactedByDTO,
   CreateLeadDTO,
-  EstadisticaFuenteDTO,
-  FiltrosLeadsDTO,
-  LeadDetalleDTO,
+  SourceStatsDTO,
+  LeadFiltersDTO,
+  LeadDetailDTO,
   LeadDTO,
-  ResultadoRegistroLead,
+  LeadRecordResult,
   UpdateLeadDTO,
 } from '../types/leads.types';
 
-type FilaLead = Prisma.LeadGetPayload<object> & { contactadoPor?: ContactadoPorDTO | null };
+type LeadRow = Prisma.LeadGetPayload<object> & { contactedBy?: ContactedByDTO | null };
 
-/** Quién contactó el lead: solo los datos públicos del usuario. */
-const CON_CONTACTADO_POR = { contactadoPor: { select: { id: true, fullName: true, email: true } } } as const;
+/** Who contacted the lead: only the user's public data. */
+const WITH_CONTACTED_BY = { contactedBy: { select: { id: true, fullName: true, email: true } } } as const;
 
-function aLeadDTO(f: FilaLead): LeadDTO {
+function toLeadDTO(f: LeadRow): LeadDTO {
   return {
     ...f,
-    telefonos: (f.telefonos as unknown as Telefono[]) ?? [],
-    categorias: f.categorias ?? [],
+    phones: (f.phones as unknown as Phone[]) ?? [],
+    categories: f.categories ?? [],
     emails: f.emails ?? [],
-    sitiosWeb: f.sitiosWeb ?? [],
-    redes: f.redes ?? [],
-    fuentes: (f.fuentes ?? []) as NombreFuente[],
-    fuenteOrigen: f.fuenteOrigen as NombreFuente,
-    canalPrincipal: f.canalPrincipal as LeadDTO['canalPrincipal'],
+    websites: f.websites ?? [],
+    socialLinks: f.socialLinks ?? [],
+    sources: (f.sources ?? []) as SourceName[],
+    originSource: f.originSource as SourceName,
+    primaryChannel: f.primaryChannel as LeadDTO['primaryChannel'],
   };
 }
 
-function aDatos(dto: UpdateLeadDTO): Prisma.LeadUncheckedUpdateInput {
-  // El estado de contacto solo lo cambia asignarContacto: una búsqueda que enriquece el lead
-  // no debe pisarlo con datos leídos antes de que alguien le diera "Contactar".
+function toData(dto: UpdateLeadDTO): Prisma.LeadUncheckedUpdateInput {
+  // The contact status is only changed by assignContact: a search that enriches the lead
+  // must not overwrite it with data read before someone pressed "Contact".
   const {
-    telefonos,
-    contactado: _c,
-    contactadoEn: _e,
-    contactadoPorId: _p,
-    contactadoPor: _u,
-    estadoContacto: _ec,
-    ultimoContactoEn: _uc,
-    respondioEn: _r,
-    noContactar: _n,
-    calidad: _ca,
-    puntaje: _pu,
-    calificadoEn: _cf,
-    ...resto
-  } = dto as UpdateLeadDTO & Pick<LeadDTO, 'contactadoPor'>;
-  return { ...resto, ...(telefonos !== undefined ? { telefonos: telefonos as unknown as Prisma.InputJsonValue } : {}) };
+    phones,
+    contacted: _c,
+    contactedAt: _e,
+    contactedById: _p,
+    contactedBy: _u,
+    contactStatus: _ec,
+    lastContactedAt: _uc,
+    repliedAt: _r,
+    doNotContact: _n,
+    quality: _ca,
+    score: _pu,
+    qualifiedAt: _cf,
+    ...rest
+  } = dto as UpdateLeadDTO & Pick<LeadDTO, 'contactedBy'>;
+  return { ...rest, ...(phones !== undefined ? { phones: phones as unknown as Prisma.InputJsonValue } : {}) };
 }
 
-function construirWhere(f: Partial<FiltrosLeadsDTO>): Prisma.LeadWhereInput {
+function buildWhere(f: Partial<LeadFiltersDTO>): Prisma.LeadWhereInput {
   const where: Prisma.LeadWhereInput = {};
   const and: Prisma.LeadWhereInput[] = [];
-  if (f.busquedaId) where.busquedas = { some: { busquedaId: f.busquedaId } };
-  if (f.codMpio) where.codMpio = f.codMpio;
-  if (f.codDpto && !f.codMpio) where.codMpio = { startsWith: f.codDpto };
-  if (f.categoria) where.categorias = { has: f.categoria };
-  if (f.fuente) where.fuentes = { has: f.fuente };
+  if (f.searchId) where.searches = { some: { searchId: f.searchId } };
+  if (f.municipalityCode) where.municipalityCode = f.municipalityCode;
+  if (f.departmentCode && !f.municipalityCode) where.municipalityCode = { startsWith: f.departmentCode };
+  if (f.category) where.categories = { has: f.category };
+  if (f.source) where.sources = { has: f.source };
   if (f.contactable !== undefined) where.contactable = f.contactable;
-  if (f.contactado !== undefined) where.contactado = f.contactado;
-  if (f.contactadoPorId !== undefined) where.contactadoPorId = f.contactadoPorId;
-  if (f.estados?.length) where.estadoContacto = { in: f.estados };
-  if (f.calidades?.length) {
-    const reales = f.calidades.filter((c) => c !== 'SIN') as ('ALTA' | 'MEDIA' | 'BAJA' | 'DESCARTADO')[];
-    and.push({ OR: [...(reales.length ? [{ calidad: { in: reales } }] : []), ...(f.calidades.includes('SIN') ? [{ calidad: null }] : [])] });
+  if (f.contacted !== undefined) where.contacted = f.contacted;
+  if (f.contactedById !== undefined) where.contactedById = f.contactedById;
+  if (f.statuses?.length) where.contactStatus = { in: f.statuses };
+  if (f.qualities?.length) {
+    const real = f.qualities.filter((c) => c !== 'NONE') as ('HIGH' | 'MEDIUM' | 'LOW' | 'DISCARDED')[];
+    and.push({ OR: [...(real.length ? [{ quality: { in: real } }] : []), ...(f.qualities.includes('NONE') ? [{ quality: null }] : [])] });
   }
-  if (f.enAmbas) where.numFuentes = { gt: 1 };
-  if (f.personasNaturales === false) and.push({ OR: [{ esPersonaNatural: false }, { esPersonaNatural: null }] });
-  if (f.personasNaturales === true) where.esPersonaNatural = true;
+  if (f.inBoth) where.sourceCount = { gt: 1 };
+  if (f.individuals === false) and.push({ OR: [{ isIndividual: false }, { isIndividual: null }] });
+  if (f.individuals === true) where.isIndividual = true;
   if (f.q) {
     and.push({
       OR: [
-        { nombre: { contains: f.q, mode: 'insensitive' } },
-        { razonSocial: { contains: f.q, mode: 'insensitive' } },
-        { nombresNorm: { contains: f.q.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase() } },
+        { name: { contains: f.q, mode: 'insensitive' } },
+        { legalName: { contains: f.q, mode: 'insensitive' } },
+        { namesNorm: { contains: f.q.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase() } },
         { nit: f.q },
       ],
     });
@@ -88,153 +88,153 @@ function construirWhere(f: Partial<FiltrosLeadsDTO>): Prisma.LeadWhereInput {
   return where;
 }
 
-export async function findLeadByAparicion(fuente: NombreFuente, idExterno: string): Promise<LeadDTO | null> {
-  const aparicion = await prisma.aparicion.findUnique({
-    where: { fuente_idExterno: { fuente, idExterno } },
+export async function findLeadByOccurrence(source: SourceName, externalId: string): Promise<LeadDTO | null> {
+  const occurrence = await prisma.occurrence.findUnique({
+    where: { source_externalId: { source, externalId } },
     include: { lead: true },
   });
-  return aparicion ? aLeadDTO(aparicion.lead) : null;
+  return occurrence ? toLeadDTO(occurrence.lead) : null;
 }
 
-export async function findLeadByClave(tipo: string, valor: string): Promise<LeadDTO | null> {
-  const clave = await prisma.leadClave.findUnique({ where: { tipo_valor: { tipo, valor } }, include: { lead: true } });
-  return clave ? aLeadDTO(clave.lead) : null;
+export async function findLeadByKey(type: string, value: string): Promise<LeadDTO | null> {
+  const key = await prisma.leadKey.findUnique({ where: { type_value: { type, value } }, include: { lead: true } });
+  return key ? toLeadDTO(key.lead) : null;
 }
 
-export async function findLeadsCercanos(codMpio: string, lat: number, lon: number, delta: number): Promise<LeadDTO[]> {
-  const filas = await prisma.lead.findMany({
-    where: { codMpio, lat: { gte: lat - delta, lte: lat + delta }, lon: { gte: lon - delta, lte: lon + delta } },
+export async function findNearbyLeads(municipalityCode: string, lat: number, lon: number, delta: number): Promise<LeadDTO[]> {
+  const rows = await prisma.lead.findMany({
+    where: { municipalityCode, lat: { gte: lat - delta, lte: lat + delta }, lon: { gte: lon - delta, lte: lon + delta } },
   });
-  return filas.map(aLeadDTO);
+  return rows.map(toLeadDTO);
 }
 
-export async function findLeadsPorDireccion(codMpio: string, direccionNorm: string): Promise<LeadDTO[]> {
-  const filas = await prisma.lead.findMany({ where: { codMpio, direccionNorm } });
-  return filas.map(aLeadDTO);
+export async function findLeadsByAddress(municipalityCode: string, addressNorm: string): Promise<LeadDTO[]> {
+  const rows = await prisma.lead.findMany({ where: { municipalityCode, addressNorm } });
+  return rows.map(toLeadDTO);
 }
 
-/** Leads del municipio cuyo nombre o razón social contiene la palabra (para cruzar fuentes sin coordenadas). */
-export async function findLeadsPorPalabra(codMpio: string, palabra: string, limite = 50): Promise<LeadDTO[]> {
-  const filas = await prisma.lead.findMany({
-    where: { codMpio, nombresNorm: { contains: palabra } },
-    take: limite,
+/** Leads of the municipality whose name or legal name contains the word (to match sources without coordinates). */
+export async function findLeadsByWord(municipalityCode: string, word: string, limit = 50): Promise<LeadDTO[]> {
+  const rows = await prisma.lead.findMany({
+    where: { municipalityCode, namesNorm: { contains: word } },
+    take: limit,
   });
-  return filas.map(aLeadDTO);
+  return rows.map(toLeadDTO);
 }
 
 export async function createLead(dto: CreateLeadDTO): Promise<LeadDTO> {
-  const fila = await prisma.lead.create({
-    data: { ...dto, telefonos: dto.telefonos as unknown as Prisma.InputJsonValue },
+  const row = await prisma.lead.create({
+    data: { ...dto, phones: dto.phones as unknown as Prisma.InputJsonValue },
   });
-  return aLeadDTO(fila);
+  return toLeadDTO(row);
 }
 
 export async function updateLead(id: number, dto: UpdateLeadDTO): Promise<LeadDTO> {
-  const fila = await prisma.lead.update({ where: { id }, data: aDatos(dto) });
-  return aLeadDTO(fila);
+  const row = await prisma.lead.update({ where: { id }, data: toData(dto) });
+  return toLeadDTO(row);
 }
 
 /**
- * Asigna el lead al usuario solo si nadie lo ha contactado todavía (en una sola sentencia,
- * así dos personas que le dan "Contactar" a la vez no se pisan). true si quedó asignado.
+ * Assigns the lead to the user only if nobody has contacted it yet (in a single statement,
+ * so two people pressing "Contact" at the same time do not overwrite each other). true if it was assigned.
  */
-export async function asignarContacto(id: number, usuarioId: number): Promise<boolean> {
+export async function assignContact(id: number, userId: number): Promise<boolean> {
   const r = await prisma.lead.updateMany({
-    where: { id, contactado: false },
-    data: { contactado: true, contactadoEn: new Date(), contactadoPorId: usuarioId },
+    where: { id, contacted: false },
+    data: { contacted: true, contactedAt: new Date(), contactedById: userId },
   });
   if (r.count === 1) {
-    // Contactado por fuera de la plataforma: entra al embudo como CONTACTADO.
-    await prisma.lead.updateMany({ where: { id, estadoContacto: 'PENDIENTE' }, data: { estadoContacto: 'CONTACTADO', ultimoContactoEn: new Date() } });
+    // Contacted outside the platform: it enters the funnel as CONTACTED.
+    await prisma.lead.updateMany({ where: { id, contactStatus: 'PENDING' }, data: { contactStatus: 'CONTACTED', lastContactedAt: new Date() } });
   }
   return r.count === 1;
 }
 
 export async function findLead(id: number): Promise<LeadDTO | null> {
-  const fila = await prisma.lead.findUnique({ where: { id }, include: CON_CONTACTADO_POR });
-  return fila ? aLeadDTO(fila) : null;
+  const row = await prisma.lead.findUnique({ where: { id }, include: WITH_CONTACTED_BY });
+  return row ? toLeadDTO(row) : null;
 }
 
-export async function createClaves(leadId: number, claves: ClaveDTO[]): Promise<number> {
-  if (!claves.length) return 0;
-  const r = await prisma.leadClave.createMany({
-    data: claves.map((c) => ({ ...c, leadId })),
+export async function createKeys(leadId: number, keys: KeyDTO[]): Promise<number> {
+  if (!keys.length) return 0;
+  const r = await prisma.leadKey.createMany({
+    data: keys.map((c) => ({ ...c, leadId })),
     skipDuplicates: true,
   });
   return r.count;
 }
 
-export async function upsertAparicion(a: {
+export async function upsertOccurrence(a: {
   leadId: number;
-  fuente: NombreFuente;
-  idExterno: string;
-  coincidencia: string;
-  datos: unknown;
-  busquedaId: number;
+  source: SourceName;
+  externalId: string;
+  match: string;
+  data: unknown;
+  searchId: number;
 }): Promise<void> {
-  const datos = (a.datos ?? null) as Prisma.InputJsonValue;
-  await prisma.aparicion.upsert({
-    where: { fuente_idExterno: { fuente: a.fuente, idExterno: a.idExterno } },
-    create: { leadId: a.leadId, fuente: a.fuente, idExterno: a.idExterno, coincidencia: a.coincidencia, datos, busquedaId: a.busquedaId },
-    update: { datos, busquedaId: a.busquedaId },
+  const data = (a.data ?? null) as Prisma.InputJsonValue;
+  await prisma.occurrence.upsert({
+    where: { source_externalId: { source: a.source, externalId: a.externalId } },
+    create: { leadId: a.leadId, source: a.source, externalId: a.externalId, match: a.match, data, searchId: a.searchId },
+    update: { data, searchId: a.searchId },
   });
 }
 
-export async function createBusquedaLead(busquedaId: number, leadId: number, fuente: NombreFuente, resultado: ResultadoRegistroLead): Promise<void> {
-  await prisma.busquedaLead.createMany({ data: [{ busquedaId, leadId, fuente, resultado }], skipDuplicates: true });
+export async function createSearchLead(searchId: number, leadId: number, source: SourceName, result: LeadRecordResult): Promise<void> {
+  await prisma.searchLead.createMany({ data: [{ searchId, leadId, source, result }], skipDuplicates: true });
 }
 
-export async function countLeads(filtros: Partial<FiltrosLeadsDTO>): Promise<number> {
-  return prisma.lead.count({ where: construirWhere(filtros) });
+export async function countLeads(filters: Partial<LeadFiltersDTO>): Promise<number> {
+  return prisma.lead.count({ where: buildWhere(filters) });
 }
 
-export async function findLeads(filtros: FiltrosLeadsDTO): Promise<LeadDTO[]> {
-  // En la lista de contactados, primero los más recientes.
-  const orden: Prisma.LeadOrderByWithRelationInput[] =
-    filtros.contactado === true
-      ? [{ contactadoEn: { sort: 'desc', nulls: 'last' } }, { id: 'asc' }]
-      : [{ contactable: 'desc' }, { numFuentes: 'desc' }, { id: 'asc' }];
-  const filas = await prisma.lead.findMany({
-    where: construirWhere(filtros),
-    include: CON_CONTACTADO_POR,
-    orderBy: orden,
-    skip: (filtros.pagina - 1) * filtros.limite,
-    take: filtros.limite,
+export async function findLeads(filters: LeadFiltersDTO): Promise<LeadDTO[]> {
+  // In the contacted list, the most recent first.
+  const order: Prisma.LeadOrderByWithRelationInput[] =
+    filters.contacted === true
+      ? [{ contactedAt: { sort: 'desc', nulls: 'last' } }, { id: 'asc' }]
+      : [{ contactable: 'desc' }, { sourceCount: 'desc' }, { id: 'asc' }];
+  const rows = await prisma.lead.findMany({
+    where: buildWhere(filters),
+    include: WITH_CONTACTED_BY,
+    orderBy: order,
+    skip: (filters.page - 1) * filters.limit,
+    take: filters.limit,
   });
-  return filas.map(aLeadDTO);
+  return rows.map(toLeadDTO);
 }
 
-export async function countLeadsNuevosDeBusqueda(busquedaId: number): Promise<number> {
-  return prisma.lead.count({ where: { busquedas: { some: { busquedaId, resultado: 'nuevo' } } } });
+export async function countNewLeadsOfSearch(searchId: number): Promise<number> {
+  return prisma.lead.count({ where: { searches: { some: { searchId, result: 'new' } } } });
 }
 
-export async function findLeadDetalle(id: number): Promise<LeadDetalleDTO | null> {
-  const fila = await prisma.lead.findUnique({ where: { id }, include: { ...CON_CONTACTADO_POR, apariciones: { orderBy: { createdAt: 'asc' } } } });
-  if (!fila) return null;
-  const { apariciones, ...lead } = fila;
+export async function findLeadDetail(id: number): Promise<LeadDetailDTO | null> {
+  const row = await prisma.lead.findUnique({ where: { id }, include: { ...WITH_CONTACTED_BY, occurrences: { orderBy: { createdAt: 'asc' } } } });
+  if (!row) return null;
+  const { occurrences, ...lead } = row;
   return {
-    ...aLeadDTO(lead),
-    apariciones: apariciones.map(
-      (a): AparicionDTO => ({
-        fuente: a.fuente as NombreFuente,
-        idExterno: a.idExterno,
-        coincidencia: a.coincidencia,
-        datos: a.datos,
-        busquedaId: a.busquedaId,
-        primeraVez: a.createdAt,
-        ultimaVez: a.updatedAt,
+    ...toLeadDTO(lead),
+    occurrences: occurrences.map(
+      (a): OccurrenceDTO => ({
+        source: a.source as SourceName,
+        externalId: a.externalId,
+        match: a.match,
+        data: a.data,
+        searchId: a.searchId,
+        firstSeen: a.createdAt,
+        lastSeen: a.updatedAt,
       })
     ),
   };
 }
 
-export async function findEstadisticasPorFuente(): Promise<EstadisticaFuenteDTO[]> {
-  const filas = await prisma.$queryRaw<{ fuente: string; leads: bigint; contactables: bigint; atribuidos: bigint }[]>`
-    SELECT a.fuente,
-           COUNT(DISTINCT a.lead_id) AS leads,
+export async function findStatsBySource(): Promise<SourceStatsDTO[]> {
+  const rows = await prisma.$queryRaw<{ source: string; leads: bigint; contactables: bigint; attributed: bigint }[]>`
+    SELECT o.source,
+           COUNT(DISTINCT o.lead_id) AS leads,
            COUNT(DISTINCT CASE WHEN l.contactable THEN l.id END) AS contactables,
-           COUNT(DISTINCT CASE WHEN l.fuente_origen = a.fuente THEN l.id END) AS atribuidos
-    FROM apariciones a JOIN leads l ON l.id = a.lead_id
-    GROUP BY a.fuente ORDER BY a.fuente`;
-  return filas.map((f) => ({ fuente: f.fuente, leads: Number(f.leads), contactables: Number(f.contactables), atribuidos: Number(f.atribuidos) }));
+           COUNT(DISTINCT CASE WHEN l.origin_source = o.source THEN l.id END) AS attributed
+    FROM occurrences o JOIN leads l ON l.id = o.lead_id
+    GROUP BY o.source ORDER BY o.source`;
+  return rows.map((f) => ({ source: f.source, leads: Number(f.leads), contactables: Number(f.contactables), attributed: Number(f.attributed) }));
 }

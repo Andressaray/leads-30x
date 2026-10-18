@@ -3,7 +3,7 @@
   "version": "2.0.0",
   "private": true,
   "type": "module",
-  "description": "Frontend de Leads Colombia (React Router v8, framework mode, SPA + prerender).",
+  "description": "Leads Colombia frontend (React Router v8, framework mode, SPA + prerender).",
   "scripts": {
     "dev": "react-router dev",
     "build": "react-router build",

@@ -1,31 +1,31 @@
-import type { Candidato } from '~types/fuente.types';
+import type { Candidate } from '~types/source.types';
 import type {
-  ConteoRegistroDTO,
-  ContextoRegistroDTO,
-  EstadisticaFuenteDTO,
-  FiltrosLeadsDTO,
-  LeadDetalleDTO,
+  RecordCountDTO,
+  RecordContextDTO,
+  SourceStatsDTO,
+  LeadFiltersDTO,
+  LeadDetailDTO,
   LeadDTO,
-  ListadoLeadsDTO,
-  ResumenBusquedaLeadsDTO,
+  LeadListDTO,
+  SearchLeadsSummaryDTO,
 } from '../types/leads.types';
 
 export interface LeadsDomainInterface {
-  /** Leads guardados, con filtros y paginación. */
-  listar(filtros: FiltrosLeadsDTO): Promise<ListadoLeadsDTO>;
-  /** Un lead con el historial de cada fuente que lo trajo. Lanza 404 si no existe. */
-  obtener(id: number): Promise<LeadDetalleDTO>;
+  /** Stored leads, with filters and pagination. */
+  list(filters: LeadFiltersDTO): Promise<LeadListDTO>;
+  /** A lead with the history of every source that brought it. Throws 404 if it does not exist. */
+  get(id: number): Promise<LeadDetailDTO>;
   /**
-   * Marca un lead como contactado (primer acercamiento) y lo asigna al usuario.
-   * Lanza 404 si no existe y 409 si ya lo contactó otra persona.
+   * Marks a lead as contacted (first approach) and assigns it to the user.
+   * Throws 404 if it does not exist and 409 if someone else already contacted it.
    */
-  marcarContactado(id: number, usuarioId: number): Promise<LeadDTO>;
-  /** CSV (con BOM para Excel) de los leads que cumplen los filtros. */
-  exportarCsv(filtros: FiltrosLeadsDTO): Promise<string>;
-  /** Deduplica y guarda los candidatos de una fuente dentro de una búsqueda. */
-  registrarCandidatos(candidatos: Candidato[], ctx: ContextoRegistroDTO): Promise<ConteoRegistroDTO>;
-  /** Totales de una búsqueda: leads, nuevos, contactables, en varias fuentes. */
-  resumenDeBusqueda(busquedaId: number): Promise<ResumenBusquedaLeadsDTO>;
-  /** Leads, contactables y atribuidos por fuente (insumo del CPL por canal). */
-  estadisticas(): Promise<EstadisticaFuenteDTO[]>;
+  markContacted(id: number, userId: number): Promise<LeadDTO>;
+  /** CSV (with BOM for Excel) of the leads that match the filters. */
+  exportCsv(filters: LeadFiltersDTO): Promise<string>;
+  /** Deduplicates and stores a source's candidates within a search. */
+  registerCandidates(candidates: Candidate[], ctx: RecordContextDTO): Promise<RecordCountDTO>;
+  /** Totals of a search: leads, new, contactable, in several sources. */
+  searchSummary(searchId: number): Promise<SearchLeadsSummaryDTO>;
+  /** Leads, contactable and attributed leads per source (input for the CPL per channel). */
+  stats(): Promise<SourceStatsDTO[]>;
 }

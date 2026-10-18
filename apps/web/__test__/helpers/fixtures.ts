@@ -1,52 +1,52 @@
 import type { Lead } from "@/modules/leads";
-import type { ResultadoBusqueda } from "@/modules/busquedas";
-import type { Sesion } from "@/shared/lib/session-store";
+import type { SearchResult } from "@/modules/searches";
+import type { Session } from "@/shared/lib/session-store";
 
-export const sesion = (cambios: Partial<Sesion["usuario"]> = {}): Sesion => ({
-  token: "token-de-prueba",
-  usuario: { id: 7, email: "andres@leads.co", fullName: "Andrés Saray", rol: "SERVICE", ...cambios },
+export const session = (changes: Partial<Session["user"]> = {}): Session => ({
+  token: "test-token",
+  user: { id: 7, email: "andres@leads.co", fullName: "Andrés Saray", role: "SERVICE", ...changes },
 });
 
-let siguienteId = 1;
+let nextId = 1;
 
-export function lead(cambios: Partial<Lead> = {}): Lead {
-  const id = cambios.id ?? siguienteId++;
+export function lead(changes: Partial<Lead> = {}): Lead {
+  const id = changes.id ?? nextId++;
   return {
     id,
-    nombre: `Negocio ${id}`,
-    razonSocial: null,
+    name: `Negocio ${id}`,
+    legalName: null,
     nit: null,
-    municipio: "Medellín",
-    departamento: "Antioquia",
-    direccion: null,
-    telefonos: [],
+    municipality: "Medellín",
+    department: "Antioquia",
+    address: null,
+    phones: [],
     emails: [],
-    sitiosWeb: [],
-    redes: [],
+    websites: [],
+    socialLinks: [],
     contactable: true,
-    fuentes: ["osm"],
-    ...cambios,
+    sources: ["osm"],
+    ...changes,
   };
 }
 
-export function resultadoBusqueda(cambios: Partial<ResultadoBusqueda> = {}): ResultadoBusqueda {
+export function searchResult(changes: Partial<SearchResult> = {}): SearchResult {
   return {
-    busquedaId: 42,
-    estado: "completa",
-    municipio: { codigo: "05001", nombre: "Medellín", departamento: "Antioquia" },
-    filtros: { nombre: "Restaurantes", categoria: "restaurantes" },
-    resumen: {
+    searchId: 42,
+    status: "complete",
+    municipality: { code: "05001", name: "Medellín", department: "Antioquia" },
+    filters: { name: "Restaurantes", category: "restaurantes" },
+    summary: {
       leads: 120,
-      nuevos: 30,
+      new: 30,
       contactables: 80,
-      enVariasFuentes: 15,
-      porFuente: {
-        dane: { estado: "ok", registros: 70, nuevos: 20, enriquecidos: 5, error: null },
-        osm: { estado: "ok", registros: 50, nuevos: 10, enriquecidos: 3, error: null },
+      inMultipleSources: 15,
+      bySource: {
+        dane: { status: "ok", records: 70, new: 20, enriched: 5, error: null },
+        osm: { status: "ok", records: 50, new: 10, enriched: 3, error: null },
       },
     },
     leadsTotal: 120,
     leads: [],
-    ...cambios,
+    ...changes,
   };
 }

@@ -1,420 +1,423 @@
 # Leads Colombia · v2
 
-Monorepo con una API en Node.js + TypeScript y un frontend en React Router. La API, con solo el nombre de una ciudad, busca negocios en **cinco fuentes públicas y gratuitas**, los cruza, elimina duplicados y los guarda en **PostgreSQL**.
+Monorepo with a Node.js + TypeScript API and a React Router frontend. Given just the name of a city, the API searches businesses in **five free public sources**, matches them, removes duplicates and stores them in **PostgreSQL**.
 
-| Fuente | Qué aporta | Cuándo se consulta |
+| Source | What it provides | When it is queried |
 |---|---|---|
-| **DANE** – Registro Estadístico de Empresas | Empresas jurídicas activas: NIT, razón social, dirección, CIIU, coordenadas. **Sin teléfono ni correo** | Siempre |
-| **OpenStreetMap** (Overpass) | Nombre comercial, coordenadas del local y, a veces, teléfono, WhatsApp, web, redes | Siempre |
-| **RNT** – Registro Nacional de Turismo | NIT, dirección, celular, teléfono y correo de prestadores turísticos | Categorías turísticas (hotel, restaurante, bar, agencia de viajes, transporte) o sin categoría |
-| **SECOP II** – Proveedores Registrados | NIT, teléfono, correo y sitio web de empresas que le venden al Estado | Categorías con código UNSPSC equivalente o sin categoría |
-| **REPS** – Prestadores de salud | NIT, dirección, teléfono y correo de cada sede | Salud y odontología o sin categoría |
+| **DANE** – Registro Estadístico de Empresas | Active legal entities: NIT, legal name, address, CIIU, coordinates. **No phone or email** | Always |
+| **OpenStreetMap** (Overpass) | Trade name, coordinates of the place and, sometimes, phone, WhatsApp, website, social links | Always |
+| **RNT** – Registro Nacional de Turismo | NIT, address, mobile, phone and email of tourism providers | Tourism categories (hotel, restaurant, bar, travel agency, transport) or no category |
+| **SECOP II** – Proveedores Registrados | NIT, phone, email and website of companies that sell to the State | Categories with an equivalent UNSPSC code, or no category |
+| **REPS** – Health providers | NIT, address, phone and email of each site | Health and dentistry, or no category |
 
-Cuando un negocio aparece en varias fuentes, queda **un solo lead** con el NIT de una y el contacto de otra.
+When a business shows up in several sources, it becomes **a single lead** with the NIT from one and the contact data from another.
 
-Después, el equipo **contacta** los leads desde la plataforma (correo por SMTP; WhatsApp y llamadas registrados), anota **quién respondió** y cómo, y todo queda en el historial de cada lead (ver [Contactar leads](#contactar-leads)). Con los costos de cada canal la plataforma calcula el **CPL** por fuente y por canal ([Medir](#medir-cpl-por-canal)), y **Dapta** califica cada lead para comparar los canales por costo y por calidad ([Calificar con Dapta](#calificar-con-dapta)).
+Then the team **contacts** the leads from the platform (email through SMTP; WhatsApp messages and calls are recorded), notes **who replied** and how, and everything is kept in each lead's history (see [Lead outreach](#lead-outreach)). With the cost of each channel, the platform calculates the **CPL** per source and per channel ([Measure](#measure-cpl-per-channel)), and **Dapta** qualifies each lead so channels can be compared by cost and by quality ([Qualify with Dapta](#qualify-with-dapta)).
+
+> The code (folders, files, endpoints, identifiers, database) is in English. Everything the sales team sees — screens, error messages, emails, the template placeholders (`{{nombre}}`…) and the CSV headers — stays in Spanish.
 
 
 ## Monorepo (pnpm workspaces)
 
 ```
 leads-colombia/
-  package.json            scripts globales (pnpm dev, build, test…)
+  package.json            global scripts (pnpm dev, build, test…)
   pnpm-workspace.yaml     apps/*
-  docker-compose.yml      Postgres local (bases leads y leads_test)
+  docker-compose.yml      local Postgres (leads and leads_test databases)
   docker/init.sql
   apps/
-    api/                  @leads-colombia/api — Express + Prisma (antes en la raíz)
-    web/                  @leads-colombia/web — React Router v8 (reemplaza public/index.html)
+    api/                  @leads-colombia/api — Express + Prisma
+    web/                  @leads-colombia/web — React Router v8
 ```
 
 ### API (`apps/api`)
 
-Arquitectura por capas con módulos por dominio: `Router → Controller → Domain → Repository → Prisma/PostgreSQL`. Las fuentes externas viven en `services/fuentes` y las usa el dominio de búsquedas.
+Layered architecture with one module per domain: `Router → Controller → Domain → Repository → Prisma/PostgreSQL`. The external sources live in `services/sources` and are used by the searches domain.
 
 ```
 apps/api/
   src/
-    index.ts                   arranque: carga .env, valida el entorno, levanta el servidor
+    index.ts                   startup: loads .env, validates the environment, starts the server
     config/
-      app.ts                   middlewares, rutas, errorHandler; en producción sirve apps/web/build/client
-      environment.ts           variables de entorno (falla rápido si falta DATABASE_URL o JWT_SECRET)
-      db/client.ts             única instancia de PrismaClient
+      app.ts                   middlewares, routes, errorHandler; in production it serves apps/web/build/client
+      environment.ts           environment variables (fails fast if DATABASE_URL or JWT_SECRET is missing)
+      db/client.ts             single PrismaClient instance
       helpers/response/        HttpCode, AppError, handleSuccess / handleError / handleFile, handleValidator
       logger/                  pino
-      swagger.ts               definición OpenAPI compartida (recoge modules/**/dosc)
-      catalogo/categorias.ts   categoría ↔ CIIU ↔ etiquetas OSM ↔ RNT ↔ UNSPSC ↔ REPS
-    middlewares/               verifyAuth (sesión JWT) + requireRol, y errorHandler
-    modules/                   auth · usuarios · busquedas · leads · catalogo · contactos · plantillas · costos · metricas · calificaciones
-      router.ts · controller/ · domain/ · repository/ · types/ · validator/ · dosc/
-    services/fuentes/          dane, osm, rnt, secop, reps, cliente de datos.gov.co
-    services/correo/           envío por SMTP (nodemailer); simulado en desarrollo si no hay SMTP_HOST
-    services/dapta/            envío de leads al flujo de Dapta (Flow Studio); simulado en desarrollo si no hay DAPTA_FLOW_URL
+      swagger.ts               shared OpenAPI definition (picks up modules/**/docs)
+      catalog/categories.ts    category ↔ CIIU ↔ OSM tags ↔ RNT ↔ UNSPSC ↔ REPS
+    middlewares/               verifyAuth (JWT session) + requireRole, and errorHandler
+    modules/                   auth · users · searches · leads · catalog · outreach · templates · costs · metrics · qualifications
+      router.ts · controller/ · domain/ · repository/ · types/ · validator/ · docs/
+    services/sources/          dane, osm, rnt, secop, reps, datos.gov.co client
+    services/mail/             SMTP sending (nodemailer); simulated in development without SMTP_HOST
+    services/dapta/            sends leads to the Dapta flow (Flow Studio); simulated in development without DAPTA_FLOW_URL
     types/ · utils/
-  prisma/                      schema.prisma (fuente de verdad), migraciones y seed.ts (usuarios y plantillas iniciales)
-  __test__/                    pruebas, espejo de src/
+  prisma/                      schema.prisma (source of truth), migrations and seed.ts (initial users and templates)
+  __test__/                    tests, mirroring src/
 ```
 
 ### Web (`apps/web`) — Screaming Architecture
 
-React Router v8 en framework mode, `appDirectory: "src"`, SPA con pre-render en build (`/`, `/login`, `/contactados`, `/plantillas`, `/metricas`, `/robots.txt`). Los datos se cargan en el navegador (`clientLoader` y hooks) porque dependen de la sesión del usuario y de la base.
+React Router v8 in framework mode, `appDirectory: "src"`, SPA pre-rendered at build time (`/`, `/login`, `/contacted`, `/templates`, `/metrics`, `/sources`, `/robots.txt`). Data is loaded in the browser (`clientLoader` and hooks) because it depends on the user's session and the database.
 
 ```
 apps/web/src/
-  root.tsx                     <html>, contenedor, ErrorBoundary
-  routes.ts                    único lugar donde se definen las URLs
-  seo/robots.ts                /robots.txt (noindex: herramienta interna)
+  root.tsx                     <html>, container, ErrorBoundary
+  routes.ts                    the only place where URLs are defined
+  seo/robots.ts                /robots.txt (noindex: internal tool)
   modules/
-    auth/                      "/login" y el layout que protege las demás páginas (encabezado con el usuario, cerrar sesión)
-      components/ services/ types.ts login-route.tsx protected-layout.tsx index.ts
-    busquedas/                 "/" — formulario, resumen por fuente, POST /api/busquedas
-      components/ hooks/ services/ types.ts route.tsx index.ts
-    leads/                     tabla paginada, CSV; ruta "/contactados" (por miembro y por estado)
-      components/ hooks/ services/ types.ts contactados-route.tsx index.ts
-    contacto/                  panel lateral para contactar un lead: correo, WhatsApp, llamada, respuesta, historial
-      components/ hooks/ services/ types.ts estados.ts index.ts
-    plantillas/                "/plantillas" — crear y editar los mensajes reutilizables
+    auth/                      "/login" and the layout that protects the other pages (header with the user, logout)
+      components/ hooks/ services/ types.ts login-route.tsx protected-layout.tsx index.ts
+    searches/                  "/" — form, summary per source, POST /api/searches
+      components/ hooks/ services/ store/ types.ts route.tsx index.ts
+    leads/                     paginated table, CSV; "/contacted" route (by member and by status)
+      components/ hooks/ services/ types.ts contacted-route.tsx index.ts
+    contact/                   side panel to contact a lead: email, WhatsApp, call, reply, history
+      components/ hooks/ services/ types.ts statuses.ts index.ts
+    templates/                 "/templates" — create and edit reusable messages
       components/ route.tsx
-    metricas/                  "/metricas" — CPL por fuente y canal, gráfico costo vs. calidad, costos del periodo
-      components/ services/ types.ts formato.ts route.tsx
-    catalogo/                  categorías, departamentos, municipios (sin ruta propia)
+    metrics/                   "/metrics" — CPL per source and channel, cost vs. quality chart, costs of the period
+      components/ services/ types.ts format.ts route.tsx
+    sources/                   "/sources" — turn each source on or off
+    catalog/                   categories, departments, municipalities (no route of its own)
       hooks/ services/ types.ts index.ts
   shared/
     ui/ layout/ seo/ lib/ (http.ts, session-store.ts…) hooks/ styles/
 ```
 
-Reglas (las hace cumplir `oxlint`, ver `apps/web/.oxlintrc.json`):
+Rules (enforced by `oxlint`, see `apps/web/.oxlintrc.json`):
 
-1. Fuera de un módulo se importa solo desde `@/modules/<nombre>` (su `index.ts`), nunca rutas profundas.
-2. `shared/` no importa de `modules/`, `seo/` ni `root`.
-3. `root.tsx`, `routes.ts` y `seo/` solo componen.
-4. Nuevo dominio = nueva carpeta en `modules/` con su `route.tsx`, registrada en `routes.ts`.
-5. Componente usado por un módulo → su `components/`; por dos o más → `shared/ui/`.
-6. Las llamadas HTTP viven en `services/` de cada módulo y usan `shared/lib/http.ts` (`VITE_API_URL`, vacía = mismo origen).
+1. Outside a module, import only from `@/modules/<name>` (its `index.ts`), never deep paths.
+2. `shared/` does not import from `modules/`, `seo/` or `root`.
+3. `root.tsx`, `routes.ts` and `seo/` only compose.
+4. New domain = new folder in `modules/` with its `route.tsx`, registered in `routes.ts`.
+5. A component used by one module → its `components/`; by two or more → `shared/ui/`.
+6. HTTP calls live in each module's `services/` and use `shared/lib/http.ts` (`VITE_API_URL`, empty = same origin).
 
-## Requisitos
+## Requirements
 
-- Node.js **22.22 o superior**
-- pnpm (`corepack enable` usa la versión fijada en `packageManager`)
-- PostgreSQL 14+ (o Docker para levantar uno con `docker compose`)
+- Node.js **22.22 or later**
+- pnpm (`corepack enable` uses the version pinned in `packageManager`)
+- PostgreSQL 14+ (or Docker to start one with `docker compose`)
 
-## Puesta en marcha
+## Getting started
 
 ```bash
-corepack enable                          # una vez: activa pnpm
-pnpm install                             # todo el monorepo; también genera el cliente de Prisma
-cp apps/api/.env.example apps/api/.env   # ajusta DATABASE_URL y JWT_SECRET
-pnpm db:up                               # opcional: Postgres local con las bases leads y leads_test
-pnpm db:deploy                           # crea las tablas
-pnpm db:seed                             # crea los usuarios y las plantillas iniciales
-pnpm dev                                 # API en :3000 y web en :5173 (Vite hace proxy de /api)
+corepack enable                          # once: enables pnpm
+pnpm install                             # the whole monorepo; it also generates the Prisma client
+cp apps/api/.env.example apps/api/.env   # set DATABASE_URL and JWT_SECRET
+pnpm db:up                               # optional: local Postgres with the leads and leads_test databases
+pnpm db:deploy                           # creates the tables
+pnpm db:seed                             # creates the initial users and templates
+pnpm dev                                 # API on :3000 and web on :5173 (Vite proxies /api)
 ```
 
-- Frontend en desarrollo: <http://localhost:5173>
-- Documentación interactiva (Swagger): <http://localhost:3000/api/docs>
+- Frontend in development: <http://localhost:5173>
+- Interactive documentation (Swagger): <http://localhost:3000/api/docs>
 
-Producción: `pnpm build && pnpm start`. La API sirve el frontend compilado desde la raíz (<http://localhost:3000>) y la API en `/api`.
+Production: `pnpm build && pnpm start`. The API serves the built frontend from the root (<http://localhost:3000>) and the API under `/api`.
 
-Para una sola app: `pnpm dev:api`, `pnpm dev:web`, o `pnpm --filter @leads-colombia/web <script>`. Para agregar una dependencia: `pnpm --filter @leads-colombia/web add <paquete>`.
+For a single app: `pnpm dev:api`, `pnpm dev:web`, or `pnpm --filter @leads-colombia/web <script>`. To add a dependency: `pnpm --filter @leads-colombia/web add <package>`.
 
-> La migración inicial se escribió y verificó contra PostgreSQL 16. Si `pnpm db:migrate` te propone una migración nueva justo después de instalar, acéptala: es solo un ajuste de formato de Prisma.
+> **Coming from the Spanish version?** The database schema changed (tables, columns and enums are now in English) and there is a single new initial migration. Start from an empty database: drop it (or run `pnpm --filter @leads-colombia/api exec prisma migrate reset`), then `pnpm db:deploy` and `pnpm db:seed`. The environment variables were renamed too (see `apps/api/.env.example`).
 
-## Usuarios y login
+## Users and login
 
-Toda la app y toda la API (salvo `POST /api/auth/login`) piden sesión. El seed (`pnpm db:seed`) crea:
+The whole app and the whole API (except `POST /api/auth/login`) require a session. The seed (`pnpm db:seed`) creates:
 
-| Correo | Nombre | Rol |
+| Email | Name | Role |
 |---|---|---|
 | `andres@gmail.com` | Andres Saray | `SERVICE` |
 | `camila@gmail.com` | Camila Rojas | `SERVICE` |
 | `admin@gmail.com` | Administrador | `ADMIN` |
 
-Los tres con la contraseña `Andres1234*` (guardada solo como hash bcrypt). Cámbiala con `SEED_PASSWORD` antes de correr el seed si el servidor no es solo tuyo. El seed se puede repetir: actualiza nombre y rol, pero no toca la contraseña de un usuario que ya existe.
+All three with the password `Andres1234*` (stored only as a bcrypt hash). Change it with `SEED_PASSWORD` before running the seed if the server is not only yours. The seed can be repeated: it updates name and role, but does not touch the password of an existing user.
 
-- **Contactar**: el lead queda asignado a quien le escribe o lo llama primero (`contactadoPorId`, `contactadoEn`). Desde ahí solo esa persona (o un `ADMIN`) le escribe y registra sus respuestas; los demás reciben 409 con su nombre. Detalle en [Contactar leads](#contactar-leads).
-- **Contactados**: un selector de estado (sin respuesta, respondieron, interesados, no interesados, rebotaron; `?estado=` en la URL) y uno de miembros filtran la lista. El de miembros filtra por persona (`GET /api/usuarios/miembros`: usuarios activos sin rol `ADMIN`, con cuántos leads contactó cada uno) o muestra todo el equipo. Si tu rol es `SERVICE` arranca en los tuyos; si es `ADMIN`, en todo el equipo. La elección queda en la URL (`?miembro=<id>` o `?miembro=todos`).
-- **ADMIN**: además de todo lo anterior, puede ver la lista completa de usuarios (`GET /api/usuarios`). No aparece en el selector de miembros.
+- **Contact**: the lead is assigned to whoever writes to it or calls it first (`contactedById`, `contactedAt`). From then on only that person (or an `ADMIN`) writes to it and records its replies; the rest get 409 with their name. Details in [Lead outreach](#lead-outreach).
+- **Contacted** page: a status selector (no reply, replied, interested, not interested, bounced; `?status=` in the URL) and a members selector filter the list. The members one filters by person (`GET /api/users/members`: active users without the `ADMIN` role, with how many leads each one contacted) or shows the whole team. A `SERVICE` user starts with their own; an `ADMIN`, with the whole team. The choice stays in the URL (`?member=<id>` or `?member=all`).
+- **ADMIN**: in addition to all of the above, can see the full list of users (`GET /api/users`). They do not appear in the members selector.
 
-Desde la terminal:
+From the terminal:
 
 ```bash
 TOKEN=$(curl -s -X POST http://localhost:3000/api/auth/login -H "Content-Type: application/json" \
   -d '{"email":"andres@gmail.com","password":"Andres1234*"}' | node -pe 'JSON.parse(require("fs").readFileSync(0)).data.token')
 ```
 
-y en cada petición: `-H "Authorization: Bearer $TOKEN"`. La sesión dura `JWT_EXPIRES_IN` (12 h por defecto).
+and on every request: `-H "Authorization: Bearer $TOKEN"`. The session lasts `JWT_EXPIRES_IN` (12 h by default).
 
-## Uso
+## Usage
 
-### Buscar leads de una ciudad
+### Search a city's leads
 
 ```bash
-curl -X POST http://localhost:3000/api/busquedas \
+curl -X POST http://localhost:3000/api/searches \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"ciudad": "Rionegro", "departamento": "Antioquia", "categoria": "hoteles"}'
+  -d '{"city": "Rionegro", "department": "Antioquia", "category": "hotel"}'
 ```
 
-| Campo | Ejemplo | Nota |
+| Field | Example | Note |
 |---|---|---|
-| `ciudad` | `"Medellín"`, `"bogota"`, `"cali"` | Obligatorio si no envías `codigo` |
-| `departamento` | `"Meta"`, `"50"` | Necesario si el nombre se repite (Granada está en 3 departamentos) |
-| `codigo` | `"05615"` | Código DIVIPOLA, en lugar de `ciudad` |
-| `categoria` | `"ferreteria"`, `"restaurantes"` | Ver `GET /api/catalogo/categorias`. Sin categoría trae todos los negocios |
-| `ciiu` / `osm` | `["4752"]` / `["shop=hardware"]` | Filtros extra para el DANE y OpenStreetMap |
-| `fuentes` | `["rnt","secop"]` | Por defecto, todas |
-| `incluirPersonasNaturales` | `true` | Por defecto `false`. Ver "Datos personales" |
-| `limiteLeads` | `500` | Leads incluidos en la respuesta (por defecto 200) |
-| `asincrona` | `true` | Responde de inmediato (202) con el `busquedaId` y procesa en segundo plano. Ver abajo |
-| `refrescar` | `true` | Ignora la caché y vuelve a consultar todas las fuentes |
+| `city` | `"Medellín"`, `"bogota"`, `"cali"` | Required if you do not send `code` |
+| `department` | `"Meta"`, `"50"` | Needed when the name repeats (Granada is in 3 departments) |
+| `code` | `"05615"` | DIVIPOLA code, instead of `city` |
+| `category` | `"hardware"`, `"restaurant"` | See `GET /api/catalog/categories`. Without a category it returns every business |
+| `ciiu` / `osm` | `["4752"]` / `["shop=hardware"]` | Extra filters for DANE and OpenStreetMap |
+| `sources` | `["rnt","secop"]` | All of them by default |
+| `includeIndividuals` | `true` | `false` by default. See "Personal data" |
+| `leadsLimit` | `500` | Leads included in the response (200 by default) |
+| `async` | `true` | Responds right away (202) with the `searchId` and processes in the background. See below |
+| `refresh` | `true` | Ignores the cache and queries every source again |
 
-Todas las respuestas usan el mismo sobre:
+Every response uses the same envelope:
 
 ```jsonc
-// éxito
-{ "status": 201, "data": { "busquedaId": 1, "estado": "completa", "resumen": { ... }, "leadsTotal": 34, "leads": [ ... ] } }
-// error
-{ "status": 409, "error": "Hay 3 municipios llamados \"Granada\"...", "details": { "candidatos": [ ... ] } }
+// success
+{ "status": 201, "data": { "searchId": 1, "status": "complete", "summary": { ... }, "leadsTotal": 34, "leads": [ ... ] } }
+// error (messages are in Spanish: they are shown to the sales team)
+{ "status": 409, "error": "Hay 3 municipios llamados \"Granada\"...", "details": { "candidates": [ ... ] } }
 ```
 
-`resumen.porFuente` dice, para cada fuente, cuántos registros trajo, cuántos leads nuevos creó, cuántos completó (`enriquecidos`), cuánto tardó y si falló (`estado: error`) o no aplicaba a la categoría (`estado: omitida`). Si una fuente falla, las demás igual se guardan (`estado: parcial`); si fallan todas, responde 502.
+`summary.bySource` tells, for each source, how many records it brought, how many new leads it created, how many it completed (`enriched`), how long it took and whether it failed (`status: error`) or did not apply to the category (`status: skipped`). If a source fails, the rest are stored anyway (`status: partial`); if every source fails, it responds 502.
 
-### Búsqueda en segundo plano (recomendado)
+### Background search (recommended)
 
-Con `"asincrona": true` la API no se queda esperando a la fuente más lenta:
+With `"async": true` the API does not wait for the slowest source:
 
 ```bash
-curl -X POST http://localhost:3000/api/busquedas -H "Content-Type: application/json" \
-  -d '{"codigo": "05615", "categoria": "hoteles", "asincrona": true}'
-# → 202 { "data": { "busquedaId": 12, "estado": "en_curso", "enCola": 0, ... } }
+curl -X POST http://localhost:3000/api/searches -H "Content-Type: application/json" \
+  -d '{"code": "05615", "category": "hotel", "async": true}'
+# → 202 { "data": { "searchId": 12, "status": "in_progress", "queued": 0, ... } }
 
-curl http://localhost:3000/api/busquedas/12   # repetir hasta que estado ≠ "en_curso"
+curl http://localhost:3000/api/searches/12   # repeat until status ≠ "in_progress"
 ```
 
-La web usa este modo y consulta el estado cada 2 s. Si el servidor se reinicia a mitad de una búsqueda, al arrancar la marca como `fallida`.
+The web app uses this mode and polls the status every 2 s. If the server restarts in the middle of a search, it is marked as `failed` at startup.
 
-### Otros endpoints
+### Other endpoints
 
-| Ruta | Para qué |
+| Route | Purpose |
 |---|---|
-| `POST /api/auth/login` · `GET /api/auth/me` | Iniciar sesión (devuelve el token) y ver el usuario actual |
-| `GET /api/usuarios` | Lista de usuarios (solo `ADMIN`) |
-| `GET /api/usuarios/miembros` | Miembros del equipo (activos, sin `ADMIN`) con su número de leads contactados. Cualquier usuario con sesión |
-| `GET /api/leads` | Leads guardados. Filtros: `busqueda`, `municipio`, `departamento`, `categoria`, `fuente`, `contactable`, `contactado`, `estado` (uno o varios separados por coma), `mios` (solo los que contacté), `contactado_por` (id de usuario), `en_ambas`, `personas_naturales`, `q`, `limite`, `pagina` |
-| `POST /api/leads/:id/contactar` | Marca el lead como contactado por fuera de la plataforma, sin mensaje (409 si ya lo contactó otra persona). La web ya no lo usa: se reemplazó por el panel de contacto |
-| `GET /api/leads/export.csv` | Lo mismo en CSV (abre en Excel con tildes) |
-| `GET /api/leads/:id` | Un lead con cada aparición en cada fuente y cómo se cruzó |
-| `GET /api/leads/estadisticas` | Leads, contactables y atribuidos por fuente (insumo del CPL por canal) |
-| `GET /api/busquedas` · `GET /api/busquedas/:id` | Historial y detalle por fuente |
-| `GET /api/catalogo/categorias` · `municipios` · `fuentes` | Catálogos |
+| `POST /api/auth/login` · `GET /api/auth/me` | Log in (returns the token) and see the current user |
+| `GET /api/users` | List of users (`ADMIN` only) |
+| `GET /api/users/members` | Team members (active, no `ADMIN`) with their number of contacted leads. Any user with a session |
+| `GET /api/leads` | Stored leads. Filters: `search`, `municipality`, `department`, `category`, `source`, `contactable`, `contacted`, `status` (one or more, comma separated), `quality`, `mine` (only the ones I contacted), `contacted_by` (user id), `in_both`, `individuals`, `q`, `limit`, `page` |
+| `POST /api/leads/:id/mark-contacted` | Marks the lead as contacted outside the platform, without a message (409 if someone else already contacted it). The web app no longer uses it: it was replaced by the contact panel |
+| `GET /api/leads/export.csv` | The same as CSV (opens in Excel with accents; headers in Spanish) |
+| `GET /api/leads/:id` | A lead with each occurrence in each source and how it was matched |
+| `GET /api/leads/stats` | Leads, contactable and attributed leads per source (input for the CPL per channel) |
+| `GET /api/searches` · `GET /api/searches/:id` | History and detail per source |
+| `GET /api/catalog/categories` · `departments` · `municipalities` · `sources` | Catalogs |
 
-## Contactar leads
+## Lead outreach
 
-Desde la tabla de una búsqueda o desde **Contactados**, el botón **Contactar** (o **Ver**) abre un panel con todo lo del lead:
+From a search table or from **Contacted**, the **Contactar** (or **Ver**) button opens a panel with everything about the lead:
 
-| Canal | Qué hace la plataforma |
+| Channel | What the platform does |
 |---|---|
-| **Correo** | Lo **envía** por SMTP con la plantilla elegida ya rellenada (editable). Agrega solo un pie con quién escribe y cómo darse de baja. Las respuestas llegan al correo del vendedor (`Reply-To`). |
-| **WhatsApp** | Abre `wa.me` con el mensaje escrito y lo **registra**. No usa la API de WhatsApp Business (que exige plantillas aprobadas por Meta y cobra por conversación). |
-| **Llamada** | Botón para marcar (`tel:`), el guion de la plantilla y una nota; la llamada queda **registrada**. |
+| **Email** | **Sends** it through SMTP with the chosen template already filled (editable). It only adds a footer with who is writing and how to unsubscribe. Replies go to the salesperson's email (`Reply-To`). |
+| **WhatsApp** | Opens `wa.me` with the message written and **records** it. It does not use the WhatsApp Business API (which requires templates approved by Meta and charges per conversation). |
+| **Call** | Button to dial (`tel:`), the template script and a note; the call is **recorded**. |
 
-Luego se registra **cómo respondió**: *Respondió*, *Interesado*, *No interesado* o *Rebotó*. Cada lead tiene su estado en el embudo:
+Then **how it replied** is recorded: *Respondió*, *Interesado*, *No interesado* or *Rebotó*. Each lead has its funnel status:
 
 ```
-PENDIENTE → CONTACTADO (sin respuesta) → RESPONDIO / INTERESADO / NO_INTERESADO / REBOTADO
+PENDING → CONTACTED (no reply) → REPLIED / INTERESTED / NOT_INTERESTED / BOUNCED
 ```
 
-Además del estado se guarda `ultimoContactoEn`, `respondioEn` (primera respuesta; un rebote no cuenta) y el **historial** completo (`interacciones`): canal, sentido (saliente/entrante), quién, a qué correo o número, asunto, mensaje, nota, resultado y error si el correo no salió. Con eso se calcula después la tasa de respuesta y el CPL por canal (punto 3).
+Besides the status, `lastContactedAt`, `repliedAt` (first reply; a bounce does not count) and the full **history** (`interactions`) are stored: channel, direction (outbound/inbound), who, to which email or number, subject, message, note, result and the error if the email did not go out. The reply rate and the CPL per channel (point 3) are calculated from this.
 
-**Plantillas** (`/plantillas`): mensajes reutilizables por canal con variables `{{nombre}}`, `{{municipio}}`, `{{departamento}}`, `{{categoria}}`, `{{remitente}}` y `{{empresa}}`. Una variable mal escrita se rechaza al guardar. Las edita quien las creó o un `ADMIN`; no se borran, se desactivan (el historial conserva cuál se usó).
+**Templates** (`/templates`): reusable messages per channel with the variables `{{nombre}}`, `{{municipio}}`, `{{departamento}}`, `{{categoria}}`, `{{remitente}}` and `{{empresa}}` (in Spanish, because the team types them in its messages). A misspelled variable is rejected on save. They are edited by whoever created them or an `ADMIN`; they are not deleted, they are deactivated (the history keeps which one was used).
 
-### Reglas
+### Rules
 
-- **Ley 2300 de 2023** (`CONTACTO_HORARIO_LEGAL=true` por defecto), mientras el lead no haya respondido:
-  - solo **lunes a viernes de 7 a. m. a 7 p. m. y sábados de 8 a. m. a 3 p. m.**, nunca domingos ni festivos (los festivos de Colombia se calculan, incluida la Ley Emiliani), siempre en hora de Colombia;
-  - **un contacto por día**;
-  - **un solo canal por semana** (lunes a domingo): si esta semana le escribiste por correo, sigue por correo o espera al lunes.
+- **Ley 2300 de 2023** (`CONTACT_LEGAL_HOURS=true` by default), while the lead has not replied:
+  - only **Monday to Friday from 7 a.m. to 7 p.m. and Saturdays from 8 a.m. to 3 p.m.**, never on Sundays or holidays (Colombian holidays are calculated, including Ley Emiliani), always in Colombia time;
+  - **one contact per day**;
+  - **a single channel per week** (Monday to Sunday): if you emailed this week, keep using email or wait until Monday.
 
-  Cuando el lead responde (*Respondió* o *Interesado*), la conversación la pidió él y estas reglas ya no limitan. El panel explica por qué no se puede y deshabilita el botón; la API responde **422** con `details.regla`.
-- **No volver a contactar** (Ley 1581 y art. 5 de la Ley 2300): cada correo trae un enlace firmado (`/api/bajas/<token>`, sin sesión) y las cabeceras `List-Unsubscribe` para el botón "Cancelar suscripción" de Gmail y Outlook. Si el lead lo pide por otro medio, se marca a mano en el panel. Un lead marcado o *No interesado* no se puede volver a contactar (**409**). Sin `URL_PUBLICA`, el pie pide responder BAJA y hay que marcarlo a mano.
-- **Un lead, un responsable**: lo trabaja quien lo contactó primero; un `ADMIN` puede escribirle sin quitárselo.
-- Si el SMTP rechaza el correo, la API responde **502**, queda en el historial como *Falló* y no cuenta como contacto.
+  Once the lead replies (*Respondió* or *Interesado*), the lead asked for the conversation and these rules no longer limit it. The panel explains why it cannot be contacted and disables the button; the API responds **422** with `details.rule`.
+- **Do not contact again** (Ley 1581 and art. 5 of Ley 2300): each email carries a signed link (`/api/unsubscribe/<token>`, no session) and the `List-Unsubscribe` headers for the "Unsubscribe" button in Gmail and Outlook. If the lead asks through another channel, it is marked by hand in the panel. A marked or *No interesado* lead cannot be contacted again (**409**). Without `PUBLIC_URL`, the footer asks the recipient to reply BAJA and it has to be marked by hand.
+- **One lead, one owner**: it is worked by whoever contacted it first; an `ADMIN` can write to it without taking it over.
+- If SMTP rejects the email, the API responds **502**, it is recorded in the history as *Falló* and it does not count as a contact.
 
-> La Ley 2300 protege a consumidores; para negocios (B2B) su alcance no es del todo claro. La plataforma la aplica igual por prudencia. Confírmalo con alguien de legal antes de desactivarla.
+> Ley 2300 protects consumers; its scope for businesses (B2B) is not entirely clear. The platform applies it anyway, to be safe. Confirm it with someone from legal before turning it off.
 
-### Configurar el correo
+### Email setup
 
-Variables en `apps/api/.env` (ver `.env.example`):
+Variables in `apps/api/.env` (see `.env.example`):
 
-| Variable | Para qué |
+| Variable | Purpose |
 |---|---|
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS` | Servidor de correo. Sin `SMTP_HOST`, en desarrollo los correos quedan **simulados** (se registran, no salen, y el panel lo avisa); en producción no se envían. |
-| `CORREO_REMITENTE` | `"Ventas Mi Empresa <ventas@miempresa.co>"`. Usa un dominio propio con SPF y DKIM, o los correos caerán en spam. |
-| `CORREO_RESPONDER_A` | A dónde llegan las respuestas (por defecto, al correo del vendedor). |
-| `NOMBRE_EMPRESA` | Firma de los mensajes y la variable `{{empresa}}`. |
-| `URL_PUBLICA` | URL pública de la API, para el enlace de baja. |
-| `CONTACTO_HORARIO_LEGAL` | `false` solo para probar en desarrollo fuera de horario. |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS` | Mail server. Without `SMTP_HOST`, in development emails are **simulated** (recorded, not sent, and the panel says so); in production they are not sent. |
+| `EMAIL_FROM` | `"Ventas Mi Empresa <ventas@miempresa.co>"`. Use your own domain with SPF and DKIM, or emails will end up in spam. |
+| `EMAIL_REPLY_TO` | Where replies arrive (the salesperson's email by default). |
+| `COMPANY_NAME` | Signature of the messages and the `{{empresa}}` variable. |
+| `PUBLIC_URL` | Public URL of the API, for the unsubscribe link. |
+| `CONTACT_LEGAL_HOURS` | `false` only to test outside legal hours in development. |
 
 ### Endpoints
 
-| Ruta | Para qué |
+| Route | Purpose |
 |---|---|
-| `GET /api/leads/:id/contacto` | Ficha: estado, historial, correos y números por canal, y si se puede contactar ahora (`permiso.motivo`, `permiso.porCanal`) |
-| `POST /api/leads/:id/contacto/vista-previa` | Rellena una plantilla (`plantillaId`) o un texto con los datos del lead |
-| `POST /api/leads/:id/correo` | Envía un correo (`para`, `asunto`, `mensaje`, `plantillaId`) |
-| `POST /api/leads/:id/interacciones` | Registra un WhatsApp, una llamada u otro contacto (`canal`, `destino`, `mensaje`, `nota`) |
-| `POST /api/leads/:id/respuesta` | Registra la respuesta (`canal`, `resultado`: `RESPONDIO` · `INTERESADO` · `NO_INTERESADO` · `REBOTADO`, `nota`) |
-| `POST /api/leads/:id/no-contactar` | El lead pidió no volver a ser contactado |
-| `GET·POST /api/bajas/:token` | Enlace público de baja de los correos (GET muestra el botón; POST da de baja) |
-| `GET·POST /api/plantillas` · `GET·PATCH /api/plantillas/:id` · `GET /api/plantillas/variables` | Plantillas |
+| `GET /api/leads/:id/contact` | Contact sheet: status, history, emails and numbers per channel, and whether it can be contacted now (`permission.reason`, `permission.byChannel`) |
+| `POST /api/leads/:id/contact/preview` | Fills a template (`templateId`) or a text with the lead's data |
+| `POST /api/leads/:id/email` | Sends an email (`to`, `subject`, `message`, `templateId`) |
+| `POST /api/leads/:id/interactions` | Records a WhatsApp message, a call or another contact (`channel`, `destination`, `message`, `note`) |
+| `POST /api/leads/:id/reply` | Records the reply (`channel`, `result`: `REPLIED` · `INTERESTED` · `NOT_INTERESTED` · `BOUNCED`, `note`) |
+| `POST /api/leads/:id/do-not-contact` | The lead asked not to be contacted again |
+| `GET·POST /api/unsubscribe/:token` | Public unsubscribe link of the emails (GET shows the button; POST unsubscribes) |
+| `GET·POST /api/templates` · `GET·PATCH /api/templates/:id` · `GET /api/templates/variables` | Templates |
 
-**Todavía no:** leer las respuestas de los correos automáticamente (IMAP o webhooks del proveedor) ni los rebotes que llegan después del envío. Por ahora se registran a mano desde el panel.
+**Not yet:** reading email replies automatically (IMAP or provider webhooks) or the bounces that arrive after sending. For now they are recorded by hand from the panel.
 
-## Medir: CPL por canal
+## Measure: CPL per channel
 
-La página **Métricas** muestra, para un periodo (por defecto el mes en curso), cuánto costó cada lead según la **fuente** donde se encontró (DANE, OSM, RNT, SECOP, REPS) y según el **canal** por el que se contactó (correo, WhatsApp, llamadas, Dapta), junto con el embudo (contactados, respondieron) y la calidad.
+The **Métricas** page shows, for a period (the current month by default), how much each lead cost according to the **source** where it was found (DANE, OSM, RNT, SECOP, REPS) and the **channel** it was contacted through (email, WhatsApp, calls, Dapta), along with the funnel (contacted, replied) and the quality.
 
-**Costos.** Un `ADMIN` los registra en la misma página (`/api/costos`): a qué se cargan (una fuente, un canal de contacto o `general`), el periodo que cubren y el monto. También pueden ser **horas del equipo** (horas × valor de la hora). Ejemplos: el servidor → `general`; el plan de Brevo → `email`; los minutos de Dapta → `dapta`; horas revisando el RNT → `rnt`.
+**Costs.** An `ADMIN` records them on the same page (`/api/costs`): what they are charged to (a source, a contact channel or `general`), the period they cover and the amount. They can also be **team hours** (hours × hourly rate). Examples: the server → `general`; the Brevo plan → `email`; Dapta minutes → `dapta`; hours reviewing the RNT → `rnt`.
 
-**Cómo se reparte** (todo en `apps/api/src/modules/metricas/domain/metricas.calculo.ts`, con pruebas):
+**How it is split** (all in `apps/api/src/modules/metrics/domain/metrics.calculation.ts`, with tests):
 
-- Cada costo se prorratea por días: si cubre un mes y el periodo toma 10 días, cuenta un tercio.
-- **Costo de una fuente** = lo cargado a ella + los costos `general` repartidos según cuántos leads nuevos trajo cada fuente + el costo de cada canal de contacto repartido según cuántos de sus leads se contactaron por ese canal.
-- **CPL de una fuente** = su costo / sus leads nuevos del periodo (atribuidos a la primera fuente que los trajo, `fuenteOrigen`).
-- **Por canal de contacto**: costo del canal / leads contactados, / leads que respondieron y / leads de calidad alta.
-- Lo que no se puede repartir (un canal con costo pero sin contactos en el periodo) se suma al costo total y se avisa.
+- Each cost is prorated by days: if it covers a month and the period takes 10 days, it counts a third.
+- **Cost of a source** = what was charged to it + the `general` costs split according to how many new leads each source brought + the cost of each contact channel split according to how many of its leads were contacted through that channel.
+- **CPL of a source** = its cost / its new leads of the period (attributed to the first source that brought them, `originSource`).
+- **Per contact channel**: channel cost / contacted leads, / leads that replied and / high-quality leads.
+- What cannot be split (a channel with cost but no contacts in the period) is added to the total cost and reported.
 
-| Ruta | Para qué |
+| Route | Purpose |
 |---|---|
-| `GET /api/metricas?desde=AAAA-MM-DD&hasta=AAAA-MM-DD` | Totales, `porFuente`, `porCanal` y costos del periodo |
-| `GET /api/costos` · `POST /api/costos` · `PATCH·DELETE /api/costos/:id` | Costos (leer: todos; escribir: solo `ADMIN`) |
+| `GET /api/metrics?from=YYYY-MM-DD&to=YYYY-MM-DD` | Totals, `bySource`, `byChannel` and costs of the period |
+| `GET /api/costs` · `POST /api/costs` · `PATCH·DELETE /api/costs/:id` | Costs (read: everyone; write: `ADMIN` only) |
 
-## Calificar con Dapta
+## Qualify with Dapta
 
-Dapta califica cada lead, y la página **Métricas** compara las fuentes y los canales **por costo y por calidad** (gráfico de costo por lead contra calidad: lo mejor queda arriba a la izquierda).
+Dapta qualifies each lead, and the **Métricas** page compares sources and channels **by cost and by quality** (cost per lead vs. quality chart: the best ones end up top left).
 
 ```
-Plataforma ── POST (lead + referencia) ──▶ Flujo de Dapta (Flow Studio)
-                                              │  el agente de voz llama al lead y lo califica
-Plataforma ◀── POST /api/dapta/webhook ───────┘  (calificación + referencia)
+Platform ── POST (lead + reference) ──▶ Dapta flow (Flow Studio)
+                                            │  the voice agent calls the lead and qualifies it
+Platform ◀── POST /api/dapta/webhook ───────┘  (qualification + reference)
 ```
 
-**Enviar.** Desde el panel de un lead (**Enviar a Dapta**) o en lote desde **Contactados** (filtra "Sin calificar" y **Enviar a Dapta**: manda los de la página, hasta 100). La plataforma hace `POST` a `DAPTA_FLOW_URL` con:
+**Send.** From a lead's panel (**Enviar a Dapta**) or in batch from **Contacted** (filter "Sin calificar" and **Enviar a Dapta**: it sends the page's leads, up to 100). The platform makes a `POST` to `DAPTA_FLOW_URL` with:
 
 ```json
-{ "referencia": "8f1c…", "lead_id": 12, "contact_name": "Hotel Ejemplo", "contact_phone": "+573001112233",
-  "contact_email": "hola@hotel.co", "municipio": "RIONEGRO", "departamento": "Antioquia",
-  "categoria": "Hoteles y alojamiento", "fuente": "rnt", "estado_contacto": "CONTACTADO",
-  "callback_url": "https://tu-dominio/api/dapta/webhook" }
+{ "reference": "8f1c…", "lead_id": 12, "contact_name": "Hotel Ejemplo", "contact_phone": "+573001112233",
+  "contact_email": "hola@hotel.co", "municipality": "RIONEGRO", "department": "Antioquia",
+  "category": "Hoteles y alojamiento", "source": "rnt", "contact_status": "CONTACTED",
+  "callback_url": "https://your-domain/api/dapta/webhook" }
 ```
 
-**Recibir.** Al final del flujo, un nodo HTTP manda el resultado a `POST /api/dapta/webhook` con el secreto (`x-dapta-secret: <DAPTA_WEBHOOK_SECRET>`, o `?token=` en la URL si el nodo no permite cabeceras):
+**Receive.** At the end of the flow, an HTTP node sends the result to `POST /api/dapta/webhook` with the secret (`x-dapta-secret: <DAPTA_WEBHOOK_SECRET>`, or `?token=` in the URL if the node does not allow headers):
 
 ```json
-{ "referencia": "8f1c…", "calificacion": "alta", "puntaje": 82, "resumen": "Quiere una demo el jueves",
+{ "reference": "8f1c…", "quality": "high", "score": 82, "summary": "Quiere una demo el jueves",
   "variables": { "demo_booked": true }, "call_id": "abc123" }
 ```
 
-- `calificacion`: `alta`, `media`, `baja` o `descartado` (también acepta `high/medium/low`, `hot/warm/cold`). Si solo viene `puntaje` (0–100): ≥70 alta, ≥40 media, si no baja.
-- Si no hubo conversación, manda `"estado_llamada": "no_answer"` (o `voicemail`, `busy`…) sin calificación: queda como *Dapta no logró hablar con el lead*.
-- Se aceptan los nombres en inglés (`reference`, `score`, `call_summary`, `call_status`) para mapear directo las variables de Dapta.
+- `quality`: `high`, `medium`, `low` or `discarded` (it also accepts `alta/media/baja/descartado` and `hot/warm/cold`). If only `score` (0–100) comes: ≥70 high, ≥40 medium, otherwise low.
+- If there was no conversation, send `"call_status": "no_answer"` (or `voicemail`, `busy`…) without a quality: it is recorded as *Dapta no logró hablar con el lead*.
+- Spanish field names are also accepted (`referencia`, `calificacion`/`calidad`, `puntaje`, `resumen`, `estado_llamada`, `llamada_id`), as well as `call_summary`, to map Dapta's variables directly.
 
-**Reglas.**
+**Rules.**
 
-- Si el flujo **llama** al lead (`DAPTA_CONTACTA=true`, por defecto), el envío cuenta como una llamada: aplican las mismas reglas que a cualquier contacto (no contactar, responsable del lead y Ley 2300; para la regla de "un canal por semana" la llamada de Dapta es una llamada), y queda en el historial con el canal *Agente de Dapta*. Si el agente habla con el lead, el embudo avanza (calidad alta → *Interesado*; media o baja → *Respondió*).
-- Si el flujo solo califica con los datos (`DAPTA_CONTACTA=false`), no se aplican las reglas de contacto ni cambia el embudo.
-- Un lead enviado no se vuelve a enviar mientras espera su resultado (72 h como máximo). Si Dapta no recibe el lead, queda *No se pudo enviar* y no cuenta como contacto.
-- También se puede **calificar a mano** desde el panel (quien trabaja el lead o un `ADMIN`).
-- El lead guarda su última calificación (`calidad`, `puntaje`); en Contactados se filtra por calidad (`?calidad=ALTA`, `SIN` = sin calificar).
+- If the flow **calls** the lead (`DAPTA_CALLS=true`, the default), the dispatch counts as a call: the same rules as any contact apply (do not contact, lead owner and Ley 2300; for the "one channel per week" rule a Dapta call is a call), and it is recorded in the history with the *Agente de Dapta* channel. If the agent talks to the lead, the funnel advances (high quality → *Interesado*; medium or low → *Respondió*).
+- If the flow only qualifies with the data (`DAPTA_CALLS=false`), the contact rules do not apply and the funnel does not change.
+- A dispatched lead is not sent again while it waits for its result (72 h at most). If Dapta does not receive the lead, it is recorded as *No se pudo enviar* and it does not count as a contact.
+- A lead can also be **qualified manually** from the panel (whoever works the lead or an `ADMIN`).
+- The lead keeps its latest qualification (`quality`, `score`); in Contacted it can be filtered by quality (`?quality=HIGH`, `NONE` = not qualified).
 
-**Índice de calidad** (0–100) para comparar: el puntaje; sin puntaje, alta = 85, media = 60, baja = 30, descartado = 0.
+**Quality index** (0–100) to compare: the score; without a score, high = 85, medium = 60, low = 30, discarded = 0.
 
-| Variable | Para qué |
+| Variable | Purpose |
 |---|---|
-| `DAPTA_FLOW_URL` | URL del trigger del flujo (Public Route, con la autenticación en la URL). Sin ella, en desarrollo los envíos se **simulan**. |
-| `DAPTA_WEBHOOK_SECRET` | Secreto del webhook. Sin él, el webhook no acepta nada (503). |
-| `DAPTA_CONTACTA` | `true` si el flujo llama al lead (por defecto). |
-| `URL_PUBLICA` | Para mandarle a Dapta la `callback_url`. |
+| `DAPTA_FLOW_URL` | Flow trigger URL (Public Route, with the authentication in the URL). Without it, in development dispatches are **simulated**. |
+| `DAPTA_WEBHOOK_SECRET` | Webhook secret. Without it, the webhook accepts nothing (503). |
+| `DAPTA_CALLS` | `true` if the flow calls the lead (default). |
+| `PUBLIC_URL` | To send Dapta the `callback_url`. |
 
-| Ruta | Para qué |
+| Route | Purpose |
 |---|---|
-| `POST /api/leads/:id/dapta` | Manda un lead a Dapta |
-| `POST /api/dapta/envios` | Manda varios (`{ "leadIds": [1, 2, 3] }`): devuelve enviados y omitidos con su motivo |
-| `POST /api/dapta/webhook` | Resultado del flujo (sin sesión, con secreto) |
-| `GET /api/leads/:id/calificaciones` · `POST /api/leads/:id/calificacion` | Historial de calificaciones · calificar a mano |
-| `GET /api/dapta/estado` | Si la integración está activa, simulada o desactivada |
+| `POST /api/leads/:id/dapta` | Sends a lead to Dapta |
+| `POST /api/dapta/dispatches` | Sends several (`{ "leadIds": [1, 2, 3] }`): returns sent and skipped with their reason |
+| `POST /api/dapta/webhook` | Flow result (no session, with secret) |
+| `GET /api/leads/:id/qualifications` · `POST /api/leads/:id/qualification` | Qualification history · qualify manually |
+| `GET /api/dapta/status` | Whether the integration is active, simulated or disabled |
 
-> Dapta no publica un esquema fijo para el resultado de sus llamadas: lo arma quien configura el flujo. Por eso el webhook acepta varios nombres de campo. Al configurar el flujo, usa **Test with last call** de Dapta para verificar que el resultado llega bien.
+> Dapta does not publish a fixed schema for its call results: whoever configures the flow builds it. That is why the webhook accepts several field names. When setting up the flow, use Dapta's **Test with last call** to check that the result arrives correctly.
 
-## Cómo evita duplicados
+## How it avoids duplicates
 
-Cada negocio que llega se compara con lo ya guardado **en el mismo municipio**, en este orden:
+Each incoming business is compared with what is already stored **in the same municipality**, in this order:
 
-1. **Mismo registro de la misma fuente** (re-búsquedas).
-2. **Mismo NIT.** El DANE, el RNT, SECOP y el REPS traen NIT: el cruce entre ellos es exacto.
-3. **Mismo teléfono, correo o dominio web**, si el nombre o la ubicación son compatibles (para no unir negocios que comparten número).
-4. **Misma placa** entre fuentes distintas: `KR 51 47 25` = `Carrera 51 # 47-25` = `CR 51 CL 47 25`. Así se unen razón social y nombre comercial distintos. Solo si en el municipio hay un único negocio con esa placa (un centro comercial no cuenta).
-5. **Nombre parecido** y cercanía en el mapa; sin coordenadas, 2+ palabras distintivas en común y un único candidato. Se ignoran sufijos (S.A.S., Ltda.), palabras genéricas ("hotel", "ferretería") y el nombre del municipio.
+1. **Same record from the same source** (repeated searches).
+2. **Same NIT.** DANE, RNT, SECOP and REPS include the NIT: matching between them is exact.
+3. **Same phone, email or web domain**, if the name or location is compatible (so businesses that share a number are not merged).
+4. **Same street number** across different sources: `KR 51 47 25` = `Carrera 51 # 47-25` = `CR 51 CL 47 25`. This merges different legal and trade names. Only if there is a single business with that street number in the municipality (a shopping mall does not count).
+5. **Similar name** and proximity on the map; without coordinates, 2+ distinctive words in common and a single candidate. Suffixes (S.A.S., Ltda.), generic words ("hotel", "ferretería") and the municipality name are ignored.
 
-Si coincide, el lead se **completa** (nunca se borran datos). Los teléfonos se normalizan a `+57` y 10 dígitos (los fijos viejos de 7 dígitos se completan con el indicativo del departamento; las extensiones se descartan). `fuenteOrigen` guarda la primera fuente que trajo el lead, para atribuir el CPL.
+If it matches, the lead is **completed** (data is never deleted). Phones are normalized to `+57` and 10 digits (old 7-digit landlines are completed with the department's area code; extensions are dropped). `originSource` stores the first source that brought the lead, to attribute the CPL.
 
-Orden de proceso dentro de una búsqueda: DANE → RNT → REPS → SECOP → OSM.
+Processing order within a search: DANE → RNT → REPS → SECOP → OSM.
 
-## Datos personales
+## Personal data
 
-El RNT, SECOP y el REPS incluyen personas naturales (viviendas turísticas, contratistas, profesionales independientes). Su correo y celular son **datos personales** bajo la Ley 1581 de 2012. Por eso, por defecto, el servidor solo guarda empresas:
+RNT, SECOP and REPS include individuals (tourist homes, contractors, independent professionals). Their email and mobile number are **personal data** under Ley 1581 de 2012. That is why, by default, the server only stores companies:
 
 - REPS: `tipoid = NI`
-- SECOP: excluye `PERSONA NATURAL`
-- RNT: solo NIT de 9 dígitos que empiezan por 8 o 9
+- SECOP: excludes `PERSONA NATURAL`
+- RNT: only 9-digit NITs starting with 8 or 9
 
-Con `incluirPersonasNaturales: true` también las guarda, marcadas con `esPersonaNatural: true`. Antes de contactarlas, revisa con alguien de legal cómo vas a cumplir la ley.
+With `includeIndividuals: true` it stores them too, marked with `isIndividual: true`. Before contacting them, check with someone from legal how you will comply with the law.
 
-## Tiempos y límites
+## Timing and limits
 
-- **Caché:** el resultado de cada fuente se guarda en memoria por municipio + filtros durante `CACHE_FUENTES_MINUTOS` (1440 = 24 h; `0` la desactiva; máximo `CACHE_FUENTES_MAX` entradas). Repetir una búsqueda tarda segundos; `meta.cache: true` lo indica. Se borra al reiniciar el servidor. Las fuentes que fallan no se guardan.
-- **Tope por fuente:** ninguna fuente puede demorar la búsqueda más de `FUENTE_MAX_MS` (150 s); pasado ese tiempo queda en `error` y las demás se guardan.
-- OpenStreetMap tarda 20–60 s por búsqueda. Cada servidor de Overpass tiene `OSM_TIMEOUT_MS` (60 s) y la fuente completa, con reintentos y búsqueda por radio, `OSM_PRESUPUESTO_MS` (100 s). Si un servidor responde 429/504, prueba el siguiente mientras quede tiempo.
-- El DANE consulta los CIIU de la categoría de a `DANE_CONSULTAS_EN_PARALELO` (3) y reintenta una vez si responde 5xx.
-- El login acepta `LOGIN_POR_MINUTO` intentos por IP (10 por defecto).
-- Las búsquedas se atienden **una a la vez** (máximo 5 en cola) y hay un límite por IP (`BUSQUEDAS_POR_MINUTO`).
-- datos.gov.co se pagina de a 5.000 filas hasta `DATOS_GOV_MAX_REGISTROS` (20.000 por defecto); `meta.truncado` avisa si se cortó. Con `DATOS_GOV_APP_TOKEN` (gratis) sube el límite de consultas.
-- Sin categoría en ciudades grandes, el DANE puede devolver demasiados registros; el servidor corta en 60 MB y pide filtrar.
+- **Cache:** each source's result is kept in memory per municipality + filters for `SOURCE_CACHE_MINUTES` (1440 = 24 h; `0` turns it off; at most `SOURCE_CACHE_MAX` entries). Repeating a search takes seconds; `meta.cache: true` says so. It is cleared when the server restarts. Failing sources are not cached.
+- **Per-source limit:** no source can delay the search more than `SOURCE_MAX_MS` (150 s); after that it is marked as `error` and the rest are stored.
+- OpenStreetMap takes 20–60 s per search. Each Overpass server has `OSM_TIMEOUT_MS` (60 s) and the whole source, with retries and the radius search, `OSM_BUDGET_MS` (100 s). If a server responds 429/504, it tries the next one while there is time left.
+- DANE queries the category's CIIU codes `DANE_PARALLEL_QUERIES` (3) at a time and retries once if it responds 5xx.
+- Login accepts `LOGIN_PER_MINUTE` attempts per IP (10 by default).
+- Searches are served **one at a time** (at most 5 queued) and there is a per-IP limit (`SEARCHES_PER_MINUTE`).
+- datos.gov.co is paged 5,000 rows at a time up to `DATOS_GOV_MAX_RECORDS` (20,000 by default); `meta.truncated` says if it was cut. With `DATOS_GOV_APP_TOKEN` (free) the query limit goes up.
+- Without a category in large cities, DANE can return too many records; the server stops at 60 MB and asks for a filter.
 
-## Pruebas
+## Tests
 
 ```bash
-cp apps/api/.env.test.example apps/api/.env.test   # apunta a una base desechable
-pnpm db:test:deploy              # crea las tablas en la base de pruebas
-pnpm test                        # API y web (las de repositorio se saltan si no hay .env.test)
-pnpm test:unit                   # sin base de datos (API unitarias + web)
-pnpm test:web                    # solo el frontend (Vitest)
-pnpm --filter @leads-colombia/web test:watch      # web en modo watch
-pnpm --filter @leads-colombia/web test:coverage   # web con cobertura (apps/web/coverage)
-pnpm typecheck && pnpm lint      # tipos de las dos apps y reglas de arquitectura del frontend
+cp apps/api/.env.test.example apps/api/.env.test   # points to a disposable database
+pnpm db:test:deploy              # creates the tables in the test database
+pnpm test                        # API and web (repository tests are skipped without .env.test)
+pnpm test:unit                   # without a database (API unit tests + web)
+pnpm test:web                    # frontend only (Vitest)
+pnpm --filter @leads-colombia/web test:watch      # web in watch mode
+pnpm --filter @leads-colombia/web test:coverage   # web with coverage (apps/web/coverage)
+pnpm typecheck && pnpm lint      # types of both apps and the frontend architecture rules
 ```
 
-`apps/api/__test__/` es espejo de `src/`:
+`apps/api/__test__/` mirrors `src/`:
 
-- `modules/<modulo>/domain`: reglas de negocio con repositorios en memoria (`__test__/mocks`).
-- `modules/<modulo>/controller`: HTTP con supertest y el dominio simulado.
-- `modules/<modulo>/repository` y `e2e/`: contra PostgreSQL real.
-- `services/fuentes`: cada fuente con respuestas que tienen la forma real de cada servicio.
+- `modules/<module>/domain`: business rules with in-memory repositories (`__test__/mocks`).
+- `modules/<module>/controller`: HTTP with supertest and the simulated domain.
+- `modules/<module>/repository` and `e2e/`: against real PostgreSQL.
+- `services/sources`: each source with responses that have the real shape of each service.
 
-`apps/web/__test__/` también es espejo de `src/` (Vitest + Testing Library + jsdom, config en `apps/web/vitest.config.ts`):
+`apps/web/__test__/` also mirrors `src/` (Vitest + Testing Library + jsdom, config in `apps/web/vitest.config.ts`):
 
-- `shared/`: cliente HTTP, sesión, utilidades y componentes de UI.
-- `modules/<modulo>/`: servicios, stores, hooks, componentes y páginas, con `fetch` simulado (`__test__/helpers/http.ts`) que responde con el sobre `{ status, data }` de la API.
-- Las páginas que usan el router se montan con `createRoutesStub` de React Router.
-- Los tests pueden importar internos de un módulo (en `.oxlintrc.json` la regla de imports públicos se apaga solo en `__test__/`).
+- `shared/`: HTTP client, session, utilities and UI components.
+- `modules/<module>/`: services, stores, hooks, components and pages, with a simulated `fetch` (`__test__/helpers/http.ts`) that responds with the API's `{ status, data }` envelope.
+- Pages that use the router are mounted with React Router's `createRoutesStub`.
+- Tests can import a module's internals (in `.oxlintrc.json` the public-imports rule is turned off only in `__test__/`).
 
-## Advertencias
+## Warnings
 
-- El servicio del DANE es el que alimenta su [geovisor público](https://geoportal.dane.gov.co/geovisores/economia/directorio-estadistico-de-empresas/), pero **no es una API documentada**: si cambia, hay que ajustar `apps/api/src/services/fuentes/dane.ts`. Solo se le envían códigos numéricos validados.
-- Datos de OpenStreetMap © colaboradores de OpenStreetMap, licencia [ODbL](https://www.openstreetmap.org/copyright). Si compartes los datos, da esa atribución.
-- RNT, SECOP II y REPS: [datos.gov.co](https://www.datos.gov.co) (datasets `thwd-ivmp`, `qmzu-gj57`, `c36g-9fc2`).
+- The DANE service is the one behind its [public geoviewer](https://geoportal.dane.gov.co/geovisores/economia/directorio-estadistico-de-empresas/), but **it is not a documented API**: if it changes, `apps/api/src/services/sources/dane.ts` has to be adjusted. Only validated numeric codes are sent to it.
+- OpenStreetMap data © OpenStreetMap contributors, [ODbL](https://www.openstreetmap.org/copyright) license. If you share the data, give that attribution.
+- RNT, SECOP II and REPS: [datos.gov.co](https://www.datos.gov.co) (datasets `thwd-ivmp`, `qmzu-gj57`, `c36g-9fc2`).
 
-## Agregar una fuente o una categoría
+## Adding a source or a category
 
-- **Categoría:** una entrada en `apps/api/src/config/catalogo/categorias.ts`.
-- **Fuente:** un archivo en `apps/api/src/services/fuentes/` que implemente `FuenteLeads` (`~types/fuente.types`), registrado en `services/fuentes/index.ts`; agrega su nombre a `FUENTES` y su lugar en `ORDEN_PROCESO` (`modules/busquedas/domain/busquedas.domain.ts`).
+- **Category:** an entry in `apps/api/src/config/catalog/categories.ts`.
+- **Source:** a file in `apps/api/src/services/sources/` that implements `LeadSource` (`~types/source.types`), registered in `services/sources/index.ts`; add its name to `BUILT_IN_SOURCES` and its place in `PROCESS_ORDER` (`modules/searches/domain/searches.domain.ts`).

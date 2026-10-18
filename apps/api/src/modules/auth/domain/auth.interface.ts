@@ -1,13 +1,13 @@
-import type { UsuarioSesion } from '~types/auth.types';
-import type { LoginDTO, MiembroDTO, SesionDTO, UsuarioDTO } from '../types/auth.types';
+import type { SessionUser } from '~types/auth.types';
+import type { LoginDTO, MemberDTO, SessionDTO, UserDTO } from '../types/auth.types';
 
 export interface AuthDomainInterface {
-  /** Valida correo y contraseña y devuelve un token de sesión. Lanza 401 si no coinciden o el usuario está inactivo. */
-  login(datos: LoginDTO): Promise<SesionDTO>;
-  /** Datos actuales del usuario de la sesión. Lanza 401 si ya no existe o está inactivo. */
-  yo(sesion: UsuarioSesion): Promise<UsuarioDTO>;
-  /** Todos los usuarios (sin contraseñas). */
-  listarUsuarios(): Promise<UsuarioDTO[]>;
-  /** Usuarios activos sin rol ADMIN, con su número de leads contactados (para filtrar Contactados). */
-  listarMiembros(): Promise<MiembroDTO[]>;
+  /** Validates email and password and returns a session token. Throws 401 if they do not match or the user is inactive. */
+  login(data: LoginDTO): Promise<SessionDTO>;
+  /** Current data of the session user. Throws 401 if it no longer exists or is inactive. */
+  me(session: SessionUser): Promise<UserDTO>;
+  /** Every user (without passwords). */
+  listUsers(): Promise<UserDTO[]>;
+  /** Active users without the ADMIN role, with their number of contacted leads (to filter Contacted). */
+  listMembers(): Promise<MemberDTO[]>;
 }

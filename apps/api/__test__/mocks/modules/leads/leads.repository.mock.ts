@@ -1,173 +1,173 @@
-// Repositorio de leads en memoria, con la misma firma que el real.
-// Lo usan las pruebas de dominio para ejercitar las reglas de cruce sin base de datos.
+// In-memory leads repository, with the same signature as the real one.
+// Domain tests use it to exercise the matching rules without a database.
 
-import type { NombreFuente } from '~types/fuente.types';
+import type { SourceName } from '~types/source.types';
 import type { LeadsRepository } from 'modules/leads/domain/leads.domain';
 import type {
-  AparicionDTO,
-  ClaveDTO,
+  OccurrenceDTO,
+  KeyDTO,
   CreateLeadDTO,
-  FiltrosLeadsDTO,
+  LeadFiltersDTO,
   LeadDTO,
-  ResultadoRegistroLead,
+  LeadRecordResult,
   UpdateLeadDTO,
 } from 'modules/leads/types/leads.types';
 
-interface Aparicion extends AparicionDTO {
+interface Occurrence extends OccurrenceDTO {
   leadId: number;
 }
 
-export interface RepositorioLeadsEnMemoria extends LeadsRepository {
-  _estado: {
+export interface InMemoryLeadsRepository extends LeadsRepository {
+  _status: {
     leads: LeadDTO[];
-    claves: Map<string, number>;
-    apariciones: Aparicion[];
-    busquedaLeads: { busquedaId: number; leadId: number; fuente: NombreFuente; resultado: ResultadoRegistroLead }[];
+    keys: Map<string, number>;
+    occurrences: Occurrence[];
+    searchLeads: { searchId: number; leadId: number; source: SourceName; result: LeadRecordResult }[];
   };
 }
 
-export function crearRepositorioLeadsEnMemoria(): RepositorioLeadsEnMemoria {
+export function createInMemoryLeadsRepository(): InMemoryLeadsRepository {
   const leads: LeadDTO[] = [];
-  const claves = new Map<string, number>();
-  const apariciones: Aparicion[] = [];
-  const busquedaLeads: RepositorioLeadsEnMemoria['_estado']['busquedaLeads'] = [];
-  let siguienteId = 1;
-  // Usuarios conocidos (para devolver contactadoPor como lo haría el include de Prisma).
-  const usuarios = new Map<number, { fullName: string; email: string }>([
+  const keys = new Map<string, number>();
+  const occurrences: Occurrence[] = [];
+  const searchLeads: InMemoryLeadsRepository['_status']['searchLeads'] = [];
+  let nextId = 1;
+  // Known users (to return contactedBy the way Prisma's include would).
+  const users = new Map<number, { fullName: string; email: string }>([
     [1, { fullName: 'Andres Saray', email: 'andres@gmail.com' }],
     [2, { fullName: 'Camila Rojas', email: 'camila@gmail.com' }],
   ]);
 
-  const copia = (l: LeadDTO): LeadDTO => structuredClone(l);
-  const porId = (id: number) => leads.find((l) => l.id === id);
+  const copy = (l: LeadDTO): LeadDTO => structuredClone(l);
+  const byId = (id: number) => leads.find((l) => l.id === id);
 
-  function cumple(l: LeadDTO, f: Partial<FiltrosLeadsDTO>): boolean {
-    if (f.busquedaId && !busquedaLeads.some((b) => b.busquedaId === f.busquedaId && b.leadId === l.id)) return false;
-    if (f.codMpio && l.codMpio !== f.codMpio) return false;
-    if (f.codDpto && !l.codMpio.startsWith(f.codDpto)) return false;
-    if (f.categoria && !l.categorias.includes(f.categoria)) return false;
-    if (f.fuente && !l.fuentes.includes(f.fuente)) return false;
+  function matches(l: LeadDTO, f: Partial<LeadFiltersDTO>): boolean {
+    if (f.searchId && !searchLeads.some((b) => b.searchId === f.searchId && b.leadId === l.id)) return false;
+    if (f.municipalityCode && l.municipalityCode !== f.municipalityCode) return false;
+    if (f.departmentCode && !l.municipalityCode.startsWith(f.departmentCode)) return false;
+    if (f.category && !l.categories.includes(f.category)) return false;
+    if (f.source && !l.sources.includes(f.source)) return false;
     if (f.contactable !== undefined && l.contactable !== f.contactable) return false;
-    if (f.contactado !== undefined && l.contactado !== f.contactado) return false;
-    if (f.contactadoPorId !== undefined && l.contactadoPorId !== f.contactadoPorId) return false;
-    if (f.estados?.length && !f.estados.includes(l.estadoContacto ?? 'PENDIENTE')) return false;
-    if (f.calidades?.length && !f.calidades.includes(l.calidad ?? 'SIN')) return false;
-    if (f.enAmbas && l.numFuentes <= 1) return false;
-    if (f.personasNaturales === false && l.esPersonaNatural === true) return false;
-    if (f.personasNaturales === true && l.esPersonaNatural !== true) return false;
-    if (f.q && !(l.nombre.toLowerCase().includes(f.q.toLowerCase()) || l.nit === f.q)) return false;
+    if (f.contacted !== undefined && l.contacted !== f.contacted) return false;
+    if (f.contactedById !== undefined && l.contactedById !== f.contactedById) return false;
+    if (f.statuses?.length && !f.statuses.includes(l.contactStatus ?? 'PENDING')) return false;
+    if (f.qualities?.length && !f.qualities.includes(l.quality ?? 'NONE')) return false;
+    if (f.inBoth && l.sourceCount <= 1) return false;
+    if (f.individuals === false && l.isIndividual === true) return false;
+    if (f.individuals === true && l.isIndividual !== true) return false;
+    if (f.q && !(l.name.toLowerCase().includes(f.q.toLowerCase()) || l.nit === f.q)) return false;
     return true;
   }
 
   const repo = {
-    _estado: { leads, claves, apariciones, busquedaLeads },
+    _status: { leads, keys, occurrences, searchLeads },
 
-    async findLeadByAparicion(fuente: NombreFuente, idExterno: string) {
-      const a = apariciones.find((x) => x.fuente === fuente && x.idExterno === idExterno);
-      const l = a && porId(a.leadId);
-      return l ? copia(l) : null;
+    async findLeadByOccurrence(source: SourceName, externalId: string) {
+      const a = occurrences.find((x) => x.source === source && x.externalId === externalId);
+      const l = a && byId(a.leadId);
+      return l ? copy(l) : null;
     },
-    async findLeadByClave(tipo: string, valor: string) {
-      const id = claves.get(`${tipo}|${valor}`);
-      const l = id !== undefined ? porId(id) : undefined;
-      return l ? copia(l) : null;
+    async findLeadByKey(type: string, value: string) {
+      const id = keys.get(`${type}|${value}`);
+      const l = id !== undefined ? byId(id) : undefined;
+      return l ? copy(l) : null;
     },
-    async findLeadsCercanos(codMpio: string, lat: number, lon: number, delta: number) {
+    async findNearbyLeads(municipalityCode: string, lat: number, lon: number, delta: number) {
       return leads
-        .filter((l) => l.codMpio === codMpio && l.lat !== null && l.lon !== null && Math.abs(l.lat - lat) <= delta && Math.abs(l.lon - lon) <= delta)
-        .map(copia);
+        .filter((l) => l.municipalityCode === municipalityCode && l.lat !== null && l.lon !== null && Math.abs(l.lat - lat) <= delta && Math.abs(l.lon - lon) <= delta)
+        .map(copy);
     },
-    async findLeadsPorDireccion(codMpio: string, direccionNorm: string) {
-      return leads.filter((l) => l.codMpio === codMpio && l.direccionNorm === direccionNorm).map(copia);
+    async findLeadsByAddress(municipalityCode: string, addressNorm: string) {
+      return leads.filter((l) => l.municipalityCode === municipalityCode && l.addressNorm === addressNorm).map(copy);
     },
-    async findLeadsPorPalabra(codMpio: string, palabra: string) {
-      return leads.filter((l) => l.codMpio === codMpio && l.nombresNorm.includes(palabra)).map(copia);
+    async findLeadsByWord(municipalityCode: string, word: string) {
+      return leads.filter((l) => l.municipalityCode === municipalityCode && l.namesNorm.includes(word)).map(copy);
     },
     async createLead(dto: CreateLeadDTO) {
-      const ahora = new Date();
+      const now = new Date();
       const lead: LeadDTO = {
         ...structuredClone(dto),
-        contactado: dto.contactado ?? false,
-        contactadoEn: dto.contactadoEn ?? null,
-        contactadoPorId: dto.contactadoPorId ?? null,
-        id: siguienteId++,
-        createdAt: ahora,
-        updatedAt: ahora,
+        contacted: dto.contacted ?? false,
+        contactedAt: dto.contactedAt ?? null,
+        contactedById: dto.contactedById ?? null,
+        id: nextId++,
+        createdAt: now,
+        updatedAt: now,
       };
       leads.push(lead);
-      return copia(lead);
+      return copy(lead);
     },
     async updateLead(id: number, dto: UpdateLeadDTO) {
-      const l = porId(id);
+      const l = byId(id);
       if (!l) throw new Error(`lead ${id} no existe`);
       Object.assign(l, structuredClone(dto), { updatedAt: new Date() });
-      return copia(l);
+      return copy(l);
     },
-    async asignarContacto(id: number, usuarioId: number) {
-      const l = porId(id);
-      if (!l || l.contactado) return false;
-      Object.assign(l, { contactado: true, contactadoEn: new Date(), contactadoPorId: usuarioId, updatedAt: new Date() });
+    async assignContact(id: number, userId: number) {
+      const l = byId(id);
+      if (!l || l.contacted) return false;
+      Object.assign(l, { contacted: true, contactedAt: new Date(), contactedById: userId, updatedAt: new Date() });
       return true;
     },
     async findLead(id: number) {
-      const l = porId(id);
+      const l = byId(id);
       if (!l) return null;
-      const u = l.contactadoPorId ? usuarios.get(l.contactadoPorId) : undefined;
-      return { ...copia(l), contactadoPor: u ? { id: l.contactadoPorId!, ...u } : null };
+      const u = l.contactedById ? users.get(l.contactedById) : undefined;
+      return { ...copy(l), contactedBy: u ? { id: l.contactedById!, ...u } : null };
     },
-    async createClaves(leadId: number, lista: ClaveDTO[]) {
+    async createKeys(leadId: number, list: KeyDTO[]) {
       let n = 0;
-      for (const c of lista) {
-        const k = `${c.tipo}|${c.valor}`;
-        if (!claves.has(k)) {
-          claves.set(k, leadId);
+      for (const c of list) {
+        const k = `${c.type}|${c.value}`;
+        if (!keys.has(k)) {
+          keys.set(k, leadId);
           n += 1;
         }
       }
       return n;
     },
-    async upsertAparicion(a: { leadId: number; fuente: NombreFuente; idExterno: string; coincidencia: string; datos: unknown; busquedaId: number }) {
-      const existente = apariciones.find((x) => x.fuente === a.fuente && x.idExterno === a.idExterno);
-      if (existente) {
-        Object.assign(existente, { datos: a.datos, busquedaId: a.busquedaId, ultimaVez: new Date() });
+    async upsertOccurrence(a: { leadId: number; source: SourceName; externalId: string; match: string; data: unknown; searchId: number }) {
+      const existing = occurrences.find((x) => x.source === a.source && x.externalId === a.externalId);
+      if (existing) {
+        Object.assign(existing, { data: a.data, searchId: a.searchId, lastSeen: new Date() });
       } else {
-        apariciones.push({ ...a, primeraVez: new Date(), ultimaVez: new Date() });
+        occurrences.push({ ...a, firstSeen: new Date(), lastSeen: new Date() });
       }
     },
-    async createBusquedaLead(busquedaId: number, leadId: number, fuente: NombreFuente, resultado: ResultadoRegistroLead) {
-      if (!busquedaLeads.some((b) => b.busquedaId === busquedaId && b.leadId === leadId && b.fuente === fuente)) {
-        busquedaLeads.push({ busquedaId, leadId, fuente, resultado });
+    async createSearchLead(searchId: number, leadId: number, source: SourceName, result: LeadRecordResult) {
+      if (!searchLeads.some((b) => b.searchId === searchId && b.leadId === leadId && b.source === source)) {
+        searchLeads.push({ searchId, leadId, source, result });
       }
     },
-    async countLeads(f: Partial<FiltrosLeadsDTO>) {
-      return leads.filter((l) => cumple(l, f)).length;
+    async countLeads(f: Partial<LeadFiltersDTO>) {
+      return leads.filter((l) => matches(l, f)).length;
     },
-    async findLeads(f: FiltrosLeadsDTO) {
+    async findLeads(f: LeadFiltersDTO) {
       return leads
-        .filter((l) => cumple(l, f))
-        .sort((a, b) => Number(b.contactable) - Number(a.contactable) || b.numFuentes - a.numFuentes || a.id - b.id)
-        .slice((f.pagina - 1) * f.limite, f.pagina * f.limite)
-        .map(copia);
+        .filter((l) => matches(l, f))
+        .sort((a, b) => Number(b.contactable) - Number(a.contactable) || b.sourceCount - a.sourceCount || a.id - b.id)
+        .slice((f.page - 1) * f.limit, f.page * f.limit)
+        .map(copy);
     },
-    async countLeadsNuevosDeBusqueda(busquedaId: number) {
-      return new Set(busquedaLeads.filter((b) => b.busquedaId === busquedaId && b.resultado === 'nuevo').map((b) => b.leadId)).size;
+    async countNewLeadsOfSearch(searchId: number) {
+      return new Set(searchLeads.filter((b) => b.searchId === searchId && b.result === 'new').map((b) => b.leadId)).size;
     },
-    async findLeadDetalle(id: number) {
-      const l = porId(id);
+    async findLeadDetail(id: number) {
+      const l = byId(id);
       if (!l) return null;
-      return { ...copia(l), apariciones: apariciones.filter((a) => a.leadId === id).map(({ leadId: _l, ...a }) => a) };
+      return { ...copy(l), occurrences: occurrences.filter((a) => a.leadId === id).map(({ leadId: _l, ...a }) => a) };
     },
-    async findEstadisticasPorFuente() {
-      const porFuente = new Map<string, Set<number>>();
-      for (const a of apariciones) {
-        if (!porFuente.has(a.fuente)) porFuente.set(a.fuente, new Set());
-        porFuente.get(a.fuente)!.add(a.leadId);
+    async findStatsBySource() {
+      const bySource = new Map<string, Set<number>>();
+      for (const a of occurrences) {
+        if (!bySource.has(a.source)) bySource.set(a.source, new Set());
+        bySource.get(a.source)!.add(a.leadId);
       }
-      return [...porFuente].map(([fuente, ids]) => {
-        const ls = [...ids].map(porId).filter((l): l is LeadDTO => Boolean(l));
-        return { fuente, leads: ls.length, contactables: ls.filter((l) => l.contactable).length, atribuidos: ls.filter((l) => l.fuenteOrigen === fuente).length };
+      return [...bySource].map(([source, ids]) => {
+        const ls = [...ids].map(byId).filter((l): l is LeadDTO => Boolean(l));
+        return { source, leads: ls.length, contactables: ls.filter((l) => l.contactable).length, attributed: ls.filter((l) => l.originSource === source).length };
       });
     },
   };
-  return repo as unknown as RepositorioLeadsEnMemoria;
+  return repo as unknown as InMemoryLeadsRepository;
 }

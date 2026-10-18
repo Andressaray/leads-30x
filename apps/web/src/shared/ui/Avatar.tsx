@@ -1,20 +1,20 @@
 import type { ReactNode } from "react";
 import { cn } from "@/shared/lib/cn";
-import { iniciales } from "@/shared/lib/iniciales";
+import { initials } from "@/shared/lib/initials";
 
 interface AvatarProps {
-  /** Nombre de la persona (se muestran sus iniciales). */
-  nombre?: string;
-  /** Contenido propio en lugar de iniciales (p. ej. un ícono). */
+  /** The person's name (their initials are shown). */
+  name?: string;
+  /** Custom content instead of initials (e.g. an icon). */
   children?: ReactNode;
-  tamano?: "sm" | "md";
-  variante?: "persona" | "neutro";
+  size?: "sm" | "md";
+  variant?: "person" | "neutral";
 }
 
-export function Avatar({ nombre = "", children, tamano = "md", variante = "persona" }: AvatarProps) {
+export function Avatar({ name = "", children, size = "md", variant = "person" }: AvatarProps) {
   return (
-    <span className={cn("avatar", tamano === "sm" && "avatar-sm", variante === "neutro" && "avatar-neutro")} aria-hidden="true">
-      {children ?? iniciales(nombre)}
+    <span className={cn("avatar", size === "sm" && "avatar-sm", variant === "neutral" && "avatar-neutral")} aria-hidden="true">
+      {children ?? initials(name)}
     </span>
   );
 }

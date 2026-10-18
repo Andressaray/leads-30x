@@ -1,101 +1,101 @@
-// Pruebas de integración contra la base de pruebas real (DATABASE_URL_TEST).
+// Integration tests against the real test database (DATABASE_URL_TEST).
 import * as repo from 'modules/leads/repository/leads.repository';
 import type { CreateLeadDTO } from 'modules/leads/types/leads.types';
-import { crearBusquedaDePrueba, crearUsuarioDePrueba, describeConBase, limpiarBase, prisma } from '../../../setup/db';
+import { createTestSearch, createTestUser, describeWithDb, resetDb, prisma } from '../../../setup/db';
 
-function nuevoLead(p: Partial<CreateLeadDTO> = {}): CreateLeadDTO {
+function newLead(p: Partial<CreateLeadDTO> = {}): CreateLeadDTO {
   return {
-    nombre: 'Hotel Prueba', nombreComercial: 'Hotel Prueba', razonSocial: null, nombresNorm: 'hotel prueba', nit: null,
-    codMpio: '05615', municipio: 'RIONEGRO', departamento: 'Antioquia', direccion: 'KR 50 46 23', direccionNorm: 'kr 50 46 23',
-    lat: 6.1514, lon: -75.3735, ciiu: null, categoriaFuente: 'tourism=hotel', categorias: ['hotel'],
-    telefonos: [{ numero: '+573001112233', tipo: 'movil', whatsapp: true }], emails: [], sitiosWeb: [], redes: [],
-    canalPrincipal: 'whatsapp', contactable: true, esPersonaNatural: null, fuentes: ['osm'], numFuentes: 1,
-    fuenteOrigen: 'osm', busquedaOrigenId: null, ...p,
+    name: 'Hotel Prueba', tradeName: 'Hotel Prueba', legalName: null, namesNorm: 'hotel prueba', nit: null,
+    municipalityCode: '05615', municipality: 'RIONEGRO', department: 'Antioquia', address: 'KR 50 46 23', addressNorm: 'kr 50 46 23',
+    lat: 6.1514, lon: -75.3735, ciiu: null, sourceCategory: 'tourism=hotel', categories: ['hotel'],
+    phones: [{ number: '+573001112233', type: 'mobile', whatsapp: true }], emails: [], websites: [], socialLinks: [],
+    primaryChannel: 'whatsapp', contactable: true, isIndividual: null, sources: ['osm'], sourceCount: 1,
+    originSource: 'osm', originSearchId: null, ...p,
   };
 }
 
-describeConBase('leads.repository', () => {
-  beforeEach(limpiarBase);
+describeWithDb('leads.repository', () => {
+  beforeEach(resetDb);
   afterAll(() => prisma.$disconnect());
 
-  it('crea, actualiza y conserva los teléfonos como JSON', async () => {
-    const creado = await repo.createLead(nuevoLead());
-    expect(creado.telefonos).toEqual([{ numero: '+573001112233', tipo: 'movil', whatsapp: true }]);
-    const actualizado = await repo.updateLead(creado.id, { nit: '900000001', fuentes: ['osm', 'dane'], numFuentes: 2 });
-    expect(actualizado).toMatchObject({ nit: '900000001', fuentes: ['osm', 'dane'], numFuentes: 2 });
+  it('creates, updates and keeps phones as JSON', async () => {
+    const created = await repo.createLead(newLead());
+    expect(created.phones).toEqual([{ number: '+573001112233', type: 'mobile', whatsapp: true }]);
+    const updated = await repo.updateLead(created.id, { nit: '900000001', sources: ['osm', 'dane'], sourceCount: 2 });
+    expect(updated).toMatchObject({ nit: '900000001', sources: ['osm', 'dane'], sourceCount: 2 });
   });
 
-  it('claves: no duplica y encuentra el lead', async () => {
-    const l = await repo.createLead(nuevoLead());
-    expect(await repo.createClaves(l.id, [{ tipo: 'nit', valor: '05615|900000001' }, { tipo: 'nit', valor: '05615|900000001' }])).toBe(1);
-    expect((await repo.findLeadByClave('nit', '05615|900000001'))?.id).toBe(l.id);
-    expect(await repo.findLeadByClave('nit', '05615|999')).toBeNull();
+  it('keys: does not duplicate and finds the lead', async () => {
+    const l = await repo.createLead(newLead());
+    expect(await repo.createKeys(l.id, [{ type: 'nit', value: '05615|900000001' }, { type: 'nit', value: '05615|900000001' }])).toBe(1);
+    expect((await repo.findLeadByKey('nit', '05615|900000001'))?.id).toBe(l.id);
+    expect(await repo.findLeadByKey('nit', '05615|999')).toBeNull();
   });
 
-  it('apariciones: upsert por (fuente, id externo)', async () => {
-    const b = await crearBusquedaDePrueba();
-    const l = await repo.createLead(nuevoLead());
-    await repo.upsertAparicion({ leadId: l.id, fuente: 'osm', idExterno: 'node/1', coincidencia: 'nuevo', datos: { v: 1 }, busquedaId: b });
-    await repo.upsertAparicion({ leadId: l.id, fuente: 'osm', idExterno: 'node/1', coincidencia: 'nuevo', datos: { v: 2 }, busquedaId: b });
-    expect((await repo.findLeadByAparicion('osm', 'node/1'))?.id).toBe(l.id);
-    const detalle = await repo.findLeadDetalle(l.id);
-    expect(detalle?.apariciones).toHaveLength(1);
-    expect(detalle?.apariciones[0].datos).toEqual({ v: 2 });
+  it('occurrences: upsert by (source, external id)', async () => {
+    const b = await createTestSearch();
+    const l = await repo.createLead(newLead());
+    await repo.upsertOccurrence({ leadId: l.id, source: 'osm', externalId: 'node/1', match: 'new', data: { v: 1 }, searchId: b });
+    await repo.upsertOccurrence({ leadId: l.id, source: 'osm', externalId: 'node/1', match: 'new', data: { v: 2 }, searchId: b });
+    expect((await repo.findLeadByOccurrence('osm', 'node/1'))?.id).toBe(l.id);
+    const detail = await repo.findLeadDetail(l.id);
+    expect(detail?.occurrences).toHaveLength(1);
+    expect(detail?.occurrences[0].data).toEqual({ v: 2 });
   });
 
-  it('búsquedas espaciales, por placa y por palabra', async () => {
-    const a = await repo.createLead(nuevoLead());
-    await repo.createLead(nuevoLead({ nombre: 'Lejos', nombresNorm: 'lejos', lat: 6.3, lon: -75.6, direccionNorm: null }));
-    await repo.createLead(nuevoLead({ codMpio: '05001', nombresNorm: 'hotel prueba' }));
-    expect((await repo.findLeadsCercanos('05615', 6.1515, -75.3736, 0.003)).map((l) => l.id)).toEqual([a.id]);
-    expect((await repo.findLeadsPorDireccion('05615', 'kr 50 46 23')).map((l) => l.id)).toEqual([a.id]);
-    expect((await repo.findLeadsPorPalabra('05615', 'prueba')).map((l) => l.id)).toEqual([a.id]);
+  it('spatial, street number and word searches', async () => {
+    const a = await repo.createLead(newLead());
+    await repo.createLead(newLead({ name: 'Lejos', namesNorm: 'lejos', lat: 6.3, lon: -75.6, addressNorm: null }));
+    await repo.createLead(newLead({ municipalityCode: '05001', namesNorm: 'hotel prueba' }));
+    expect((await repo.findNearbyLeads('05615', 6.1515, -75.3736, 0.003)).map((l) => l.id)).toEqual([a.id]);
+    expect((await repo.findLeadsByAddress('05615', 'kr 50 46 23')).map((l) => l.id)).toEqual([a.id]);
+    expect((await repo.findLeadsByWord('05615', 'prueba')).map((l) => l.id)).toEqual([a.id]);
   });
 
-  it('listado con filtros, conteos y estadísticas', async () => {
-    const b = await crearBusquedaDePrueba();
-    const a = await repo.createLead(nuevoLead({ fuentes: ['dane', 'osm'], numFuentes: 2, nit: '900000001' }));
-    const c = await repo.createLead(nuevoLead({ nombre: 'Sin contacto', nombresNorm: 'sin contacto', contactable: false, canalPrincipal: null, telefonos: [], esPersonaNatural: true }));
-    await repo.createBusquedaLead(b, a.id, 'dane', 'nuevo');
-    await repo.createBusquedaLead(b, a.id, 'osm', 'enriquecido');
-    await repo.createBusquedaLead(b, c.id, 'osm', 'nuevo');
-    await repo.upsertAparicion({ leadId: a.id, fuente: 'dane', idExterno: '900000001', coincidencia: 'nuevo', datos: null, busquedaId: b });
+  it('listing with filters, counts and stats', async () => {
+    const b = await createTestSearch();
+    const a = await repo.createLead(newLead({ sources: ['dane', 'osm'], sourceCount: 2, nit: '900000001' }));
+    const c = await repo.createLead(newLead({ name: 'Sin contacto', namesNorm: 'sin contacto', contactable: false, primaryChannel: null, phones: [], isIndividual: true }));
+    await repo.createSearchLead(b, a.id, 'dane', 'new');
+    await repo.createSearchLead(b, a.id, 'osm', 'enriched');
+    await repo.createSearchLead(b, c.id, 'osm', 'new');
+    await repo.upsertOccurrence({ leadId: a.id, source: 'dane', externalId: '900000001', match: 'new', data: null, searchId: b });
 
-    expect(await repo.countLeads({ busquedaId: b })).toBe(2);
-    expect(await repo.countLeads({ busquedaId: b, contactable: true })).toBe(1);
-    expect(await repo.countLeads({ enAmbas: true })).toBe(1);
-    expect(await repo.countLeads({ fuente: 'dane' })).toBe(1);
-    expect(await repo.countLeads({ personasNaturales: false })).toBe(1);
+    expect(await repo.countLeads({ searchId: b })).toBe(2);
+    expect(await repo.countLeads({ searchId: b, contactable: true })).toBe(1);
+    expect(await repo.countLeads({ inBoth: true })).toBe(1);
+    expect(await repo.countLeads({ source: 'dane' })).toBe(1);
+    expect(await repo.countLeads({ individuals: false })).toBe(1);
     expect(await repo.countLeads({ q: '900000001' })).toBe(1);
-    expect(await repo.countLeads({ codDpto: '05' })).toBe(2);
-    expect(await repo.countLeadsNuevosDeBusqueda(b)).toBe(2);
-    const pagina = await repo.findLeads({ limite: 1, pagina: 1 });
-    expect(pagina.map((l) => l.id)).toEqual([a.id]);
-    expect(await repo.findEstadisticasPorFuente()).toEqual([{ fuente: 'dane', leads: 1, contactables: 1, atribuidos: 0 }]);
+    expect(await repo.countLeads({ departmentCode: '05' })).toBe(2);
+    expect(await repo.countNewLeadsOfSearch(b)).toBe(2);
+    const page = await repo.findLeads({ limit: 1, page: 1 });
+    expect(page.map((l) => l.id)).toEqual([a.id]);
+    expect(await repo.findStatsBySource()).toEqual([{ source: 'dane', leads: 1, contactables: 1, attributed: 0 }]);
   });
 
-  it('asignarContacto: solo el primero se queda con el lead y el listado trae quién lo contactó', async () => {
-    const andres = await crearUsuarioDePrueba();
-    const camila = await crearUsuarioDePrueba({ email: 'camila@gmail.com', fullName: 'Camila Rojas' });
-    const a = await repo.createLead(nuevoLead());
-    const b = await repo.createLead(nuevoLead({ nombre: 'Otro', nombresNorm: 'otro' }));
+  it('assignContact: only the first one keeps the lead and the listing returns who contacted it', async () => {
+    const andres = await createTestUser();
+    const camila = await createTestUser({ email: 'camila@gmail.com', fullName: 'Camila Rojas' });
+    const a = await repo.createLead(newLead());
+    const b = await repo.createLead(newLead({ name: 'Otro', namesNorm: 'other' }));
 
-    // Dos personas le dan "Contactar" al mismo tiempo: solo una gana.
-    const [r1, r2] = await Promise.all([repo.asignarContacto(a.id, andres), repo.asignarContacto(a.id, camila)]);
+    // Two people press "Contact" at the same time: only one wins.
+    const [r1, r2] = await Promise.all([repo.assignContact(a.id, andres), repo.assignContact(a.id, camila)]);
     expect([r1, r2].filter(Boolean)).toHaveLength(1);
-    expect(await repo.asignarContacto(b.id, camila)).toBe(true);
+    expect(await repo.assignContact(b.id, camila)).toBe(true);
 
-    const detalle = await repo.findLead(a.id);
-    expect(detalle).toMatchObject({ contactado: true, contactadoPor: { id: detalle!.contactadoPorId, email: expect.any(String) } });
-    expect(detalle!.contactadoEn).toBeTruthy();
+    const detail = await repo.findLead(a.id);
+    expect(detail).toMatchObject({ contacted: true, contactedBy: { id: detail!.contactedById, email: expect.any(String) } });
+    expect(detail!.contactedAt).toBeTruthy();
 
-    expect(await repo.countLeads({ contactado: true })).toBe(2);
-    expect(await repo.countLeads({ contactado: true, contactadoPorId: camila })).toBe(r2 ? 2 : 1);
-    const lista = await repo.findLeads({ contactado: true, limite: 10, pagina: 1 });
-    expect(lista.every((l) => l.contactadoPor && !('passwordHash' in l.contactadoPor))).toBe(true);
+    expect(await repo.countLeads({ contacted: true })).toBe(2);
+    expect(await repo.countLeads({ contacted: true, contactedById: camila })).toBe(r2 ? 2 : 1);
+    const list = await repo.findLeads({ contacted: true, limit: 10, page: 1 });
+    expect(list.every((l) => l.contactedBy && !('passwordHash' in l.contactedBy))).toBe(true);
 
-    // Enriquecer el lead desde una búsqueda no toca el contacto.
-    await repo.updateLead(b.id, { emails: ['hola@otro.co'], contactado: false, contactadoPorId: null });
-    expect(await repo.findLead(b.id)).toMatchObject({ emails: ['hola@otro.co'], contactado: true, contactadoPorId: camila });
+    // Enriching the lead from a search does not touch the contact.
+    await repo.updateLead(b.id, { emails: ['hola@otro.co'], contacted: false, contactedById: null });
+    expect(await repo.findLead(b.id)).toMatchObject({ emails: ['hola@otro.co'], contacted: true, contactedById: camila });
   });
 });

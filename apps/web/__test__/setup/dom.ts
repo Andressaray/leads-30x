@@ -3,13 +3,13 @@ import { cleanup } from "@testing-library/react";
 import { afterEach, vi } from "vitest";
 import { sessionStore } from "@/shared/lib/session-store";
 
-// APIs del navegador que jsdom no implementa y que usa la app.
-class ResizeObserverFalso {
+// Browser APIs that jsdom does not implement and the app uses.
+class FakeResizeObserver {
   observe() {}
   unobserve() {}
   disconnect() {}
 }
-globalThis.ResizeObserver ??= ResizeObserverFalso as unknown as typeof ResizeObserver;
+globalThis.ResizeObserver ??= FakeResizeObserver as unknown as typeof ResizeObserver;
 Element.prototype.scrollIntoView ??= function () {};
 window.matchMedia ??= (query: string) =>
   ({
@@ -23,7 +23,7 @@ window.matchMedia ??= (query: string) =>
     dispatchEvent: () => false,
   }) as MediaQueryList;
 
-// Sin `globals`, Testing Library no limpia sola: se desmonta todo después de cada prueba.
+// Without `globals`, Testing Library does not clean up on its own: everything is unmounted after each test.
 afterEach(() => {
   cleanup();
   sessionStore.clear();

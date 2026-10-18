@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { sesion } from "../../helpers/fixtures";
+import { session } from "../../helpers/fixtures";
 
-const CLAVE = "leads_sesion";
+const KEY = "leads_session";
 
-// El store guarda la sesión en memoria al leerla por primera vez, así que cada prueba usa un módulo nuevo.
-async function storeNuevo() {
+// The store keeps the session in memory when it reads it the first time, so each test uses a fresh module.
+async function newStore() {
   vi.resetModules();
   return (await import("@/shared/lib/session-store")).sessionStore;
 }
@@ -12,53 +12,53 @@ async function storeNuevo() {
 describe("sessionStore", () => {
   beforeEach(() => localStorage.clear());
 
-  it("sin nada guardado devuelve null", async () => {
-    const store = await storeNuevo();
+  it("with nothing stored it returns null", async () => {
+    const store = await newStore();
     expect(store.get()).toBeNull();
   });
 
-  it("recupera la sesión guardada en localStorage", async () => {
-    localStorage.setItem(CLAVE, JSON.stringify(sesion()));
-    const store = await storeNuevo();
-    expect(store.get()).toEqual(sesion());
+  it("restores the session stored in localStorage", async () => {
+    localStorage.setItem(KEY, JSON.stringify(session()));
+    const store = await newStore();
+    expect(store.get()).toEqual(session());
   });
 
   it.each([
     ["JSON roto", "{no es json"],
-    ["sin token", JSON.stringify({ usuario: { id: 1 } })],
-    ["id no numérico", JSON.stringify({ token: "t", usuario: { id: "1" } })],
-  ])("ignora una sesión guardada inválida (%s)", async (_caso, crudo) => {
-    localStorage.setItem(CLAVE, crudo);
-    const store = await storeNuevo();
+    ["sin token", JSON.stringify({ user: { id: 1 } })],
+    ["id no numérico", JSON.stringify({ token: "t", user: { id: "1" } })],
+  ])("ignores an invalid stored session (%s)", async (_case, raw) => {
+    localStorage.setItem(KEY, raw);
+    const store = await newStore();
     expect(store.get()).toBeNull();
   });
 
-  it("set guarda, avisa a los suscriptores y clear la borra", async () => {
-    const store = await storeNuevo();
-    const oyente = vi.fn();
-    const desuscribir = store.subscribe(oyente);
+  it("set stores it and notifies subscribers, and clear removes it", async () => {
+    const store = await newStore();
+    const listener = vi.fn();
+    const unsubscribe = store.subscribe(listener);
 
-    store.set(sesion());
-    expect(store.get()).toEqual(sesion());
-    expect(JSON.parse(localStorage.getItem(CLAVE)!)).toEqual(sesion());
-    expect(oyente).toHaveBeenCalledTimes(1);
+    store.set(session());
+    expect(store.get()).toEqual(session());
+    expect(JSON.parse(localStorage.getItem(KEY)!)).toEqual(session());
+    expect(listener).toHaveBeenCalledTimes(1);
 
     store.clear();
     expect(store.get()).toBeNull();
-    expect(localStorage.getItem(CLAVE)).toBeNull();
-    expect(oyente).toHaveBeenCalledTimes(2);
+    expect(localStorage.getItem(KEY)).toBeNull();
+    expect(listener).toHaveBeenCalledTimes(2);
 
-    desuscribir();
-    store.set(sesion());
-    expect(oyente).toHaveBeenCalledTimes(2);
+    unsubscribe();
+    store.set(session());
+    expect(listener).toHaveBeenCalledTimes(2);
   });
 
-  it("si localStorage falla, la sesión queda en memoria", async () => {
+  it("if localStorage fails, the session stays in memory", async () => {
     vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
       throw new Error("QuotaExceeded");
     });
-    const store = await storeNuevo();
-    store.set(sesion());
-    expect(store.get()).toEqual(sesion());
+    const store = await newStore();
+    store.set(session());
+    expect(store.get()).toEqual(session());
   });
 });

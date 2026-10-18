@@ -1,4 +1,4 @@
-// API pública del módulo auth: sesión del usuario (login, logout), nombres de rol y miembros del equipo.
-export { cerrarSesion, iniciarSesion, listarMiembros, NOMBRE_ROL } from "./services/auth.service";
-export { useMiembros, type EstadoMiembros } from "./hooks/use-miembros";
-export type { Credenciales, Miembro, Rol, Sesion, UsuarioSesion } from "./types";
+// Public API of the auth module: user session (login, logout), role names and team members.
+export { logout, login, listMembers, ROLE_NAME } from "./services/auth.service";
+export { useMembers, type MembersState } from "./hooks/use-members";
+export type { Credentials, Member, Role, Session, SessionUser } from "./types";

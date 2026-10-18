@@ -1,11 +1,11 @@
-// Resuelve lo que escribe el usuario ("medellin", "Granada", "Bogotá") a un
-// municipio oficial de la DIVIPOLA (DANE).
+// Resolves what the user types ("medellin", "Granada", "Bogotá") to an
+// official DIVIPOLA (DANE) municipality.
 
-import type { Municipio } from '~types/fuente.types';
-import { normalizarTexto } from '~utils/normalizar';
-import { MUNICIPIOS_CSV } from './municipios.data';
+import type { Municipality } from '~types/source.types';
+import { normalizeText } from '~utils/normalize';
+import { MUNICIPALITIES_CSV } from './municipalities.data';
 
-export const DEPARTAMENTOS: Record<string, string> = {
+export const DEPARTMENTS: Record<string, string> = {
   '05': 'Antioquia', '08': 'Atlántico', '11': 'Bogotá, D.C.', '13': 'Bolívar',
   '15': 'Boyacá', '17': 'Caldas', '18': 'Caquetá', '19': 'Cauca', '20': 'Cesar',
   '23': 'Córdoba', '25': 'Cundinamarca', '27': 'Chocó', '41': 'Huila',
@@ -17,120 +17,120 @@ export const DEPARTAMENTOS: Record<string, string> = {
   '91': 'Amazonas', '94': 'Guainía', '95': 'Guaviare', '97': 'Vaupés', '99': 'Vichada',
 };
 
-const ALIAS_MUNICIPIOS: Record<string, string> = {
+const MUNICIPALITY_ALIASES: Record<string, string> = {
   bogota: '11001', 'bogota dc': '11001', cali: '76001', cartagena: '13001', cucuta: '54001',
   buga: '76111', tumaco: '52835', mompox: '13468', mompos: '13468', ubate: '25843',
   mariquita: '73443', tolu: '70820', since: '70742',
   'santa fe de antioquia': '05042', 'santafe de antioquia': '05042',
 };
 
-const ALIAS_DEPARTAMENTOS: Record<string, string> = {
+const DEPARTMENT_ALIASES: Record<string, string> = {
   bogota: '11', valle: '76', 'san andres': '88', 'norte santander': '54', guajira: '44',
 };
 
-const TIPOS: Record<string, string> = { M: 'Municipio', I: 'Isla', A: 'Área no municipalizada' };
+const TYPES: Record<string, string> = { M: 'Municipio', I: 'Isla', A: 'Área no municipalizada' };
 
-interface MunicipioIndexado extends Municipio {
-  clave: string;
+interface IndexedMunicipality extends Municipality {
+  key: string;
 }
 
-export const MUNICIPIOS: MunicipioIndexado[] = MUNICIPIOS_CSV.trim()
+export const MUNICIPALITIES: IndexedMunicipality[] = MUNICIPALITIES_CSV.trim()
   .split(/\r?\n/)
-  .map((linea) => {
-    const [codigo, nombre, tipo, lat, lon] = linea.split(';');
-    const codDpto = codigo.slice(0, 2);
+  .map((line) => {
+    const [code, name, type, lat, lon] = line.split(';');
+    const departmentCode = code.slice(0, 2);
     return {
-      codigo,
-      nombre,
-      tipo: TIPOS[tipo] ?? tipo,
-      codigoDepartamento: codDpto,
-      departamento: DEPARTAMENTOS[codDpto],
+      code,
+      name,
+      type: TYPES[type] ?? type,
+      departmentCode: departmentCode,
+      department: DEPARTMENTS[departmentCode],
       lat: Number(lat),
       lon: Number(lon),
-      clave: normalizarTexto(nombre),
+      key: normalizeText(name),
     };
   });
 
-const POR_CODIGO = new Map(MUNICIPIOS.map((m) => [m.codigo, m]));
+const BY_CODE = new Map(MUNICIPALITIES.map((m) => [m.code, m]));
 
-function sinClave({ clave: _clave, ...m }: MunicipioIndexado): Municipio {
+function withoutKey({ key: _key, ...m }: IndexedMunicipality): Municipality {
   return m;
 }
 
-export function obtenerMunicipio(codigo: string): Municipio | undefined {
-  const m = POR_CODIGO.get(codigo);
-  return m ? sinClave(m) : undefined;
+export function getMunicipality(code: string): Municipality | undefined {
+  const m = BY_CODE.get(code);
+  return m ? withoutKey(m) : undefined;
 }
 
-/** Código de 2 dígitos; null si no se pasó nada; undefined si no se reconoce. */
-export function resolverDepartamento(texto: unknown): string | null | undefined {
-  if (texto === undefined || texto === null || String(texto).trim() === '') return null;
-  const valor = String(texto).trim();
-  if (/^\d{1,2}$/.test(valor)) {
-    const cod = valor.padStart(2, '0');
-    return DEPARTAMENTOS[cod] ? cod : undefined;
+/** 2-digit code; null if nothing was passed; undefined if not recognized. */
+export function resolveDepartment(text: unknown): string | null | undefined {
+  if (text === undefined || text === null || String(text).trim() === '') return null;
+  const value = String(text).trim();
+  if (/^\d{1,2}$/.test(value)) {
+    const code = value.padStart(2, '0');
+    return DEPARTMENTS[code] ? code : undefined;
   }
-  const clave = normalizarTexto(valor);
-  if (ALIAS_DEPARTAMENTOS[clave]) return ALIAS_DEPARTAMENTOS[clave];
-  const entradas = Object.entries(DEPARTAMENTOS);
-  const exacto = entradas.find(([, nombre]) => normalizarTexto(nombre) === clave);
-  if (exacto) return exacto[0];
-  const prefijo = entradas.find(([, nombre]) => normalizarTexto(nombre).startsWith(clave));
-  return prefijo ? prefijo[0] : undefined;
+  const key = normalizeText(value);
+  if (DEPARTMENT_ALIASES[key]) return DEPARTMENT_ALIASES[key];
+  const entries = Object.entries(DEPARTMENTS);
+  const exact = entries.find(([, name]) => normalizeText(name) === key);
+  if (exact) return exact[0];
+  const prefix = entries.find(([, name]) => normalizeText(name).startsWith(key));
+  return prefix ? prefix[0] : undefined;
 }
 
-export interface CandidatoMunicipio {
-  codigo: string;
-  nombre: string;
-  departamento: string;
+export interface MunicipalityCandidate {
+  code: string;
+  name: string;
+  department: string;
 }
 
-export type ResolucionMunicipio =
-  | { municipio: Municipio }
-  | { candidatos: CandidatoMunicipio[] }
+export type MunicipalityResolution =
+  | { municipality: Municipality }
+  | { candidates: MunicipalityCandidate[] }
   | { error: string };
 
-export function resolverMunicipio(p: { ciudad?: string; departamento?: string; codigo?: string }): ResolucionMunicipio {
-  if (p.codigo) {
-    const cod = String(p.codigo).trim();
-    if (!/^\d{5}$/.test(cod)) return { error: 'El código DIVIPOLA debe tener 5 dígitos.' };
-    const m = obtenerMunicipio(cod);
-    return m ? { municipio: m } : { error: `No existe el municipio con código ${cod}.` };
+export function resolveMunicipality(p: { city?: string; department?: string; code?: string }): MunicipalityResolution {
+  if (p.code) {
+    const code = String(p.code).trim();
+    if (!/^\d{5}$/.test(code)) return { error: 'El código DIVIPOLA debe tener 5 dígitos.' };
+    const m = getMunicipality(code);
+    return m ? { municipality: m } : { error: `No existe el municipio con código ${code}.` };
   }
-  if (!p.ciudad || !String(p.ciudad).trim()) {
+  if (!p.city || !String(p.city).trim()) {
     return { error: 'Falta la ciudad. Envía "ciudad" (y opcionalmente "departamento").' };
   }
 
-  const codDpto = resolverDepartamento(p.departamento);
-  if (codDpto === undefined) return { error: `No reconozco el departamento "${p.departamento}".` };
+  const departmentCode = resolveDepartment(p.department);
+  if (departmentCode === undefined) return { error: `No reconozco el departamento "${p.department}".` };
 
-  const clave = normalizarTexto(p.ciudad);
-  let encontrados: MunicipioIndexado[];
-  const alias = ALIAS_MUNICIPIOS[clave];
-  if (alias && (!codDpto || alias.startsWith(codDpto))) {
-    encontrados = [POR_CODIGO.get(alias)!];
+  const key = normalizeText(p.city);
+  let found: IndexedMunicipality[];
+  const alias = MUNICIPALITY_ALIASES[key];
+  if (alias && (!departmentCode || alias.startsWith(departmentCode))) {
+    found = [BY_CODE.get(alias)!];
   } else {
-    encontrados = MUNICIPIOS.filter((m) => m.clave === clave);
-    if (encontrados.length === 0) {
-      encontrados = MUNICIPIOS.filter((m) => m.clave.endsWith(` ${clave}`) || m.clave.startsWith(`${clave} `));
+    found = MUNICIPALITIES.filter((m) => m.key === key);
+    if (found.length === 0) {
+      found = MUNICIPALITIES.filter((m) => m.key.endsWith(` ${key}`) || m.key.startsWith(`${key} `));
     }
   }
-  if (codDpto) encontrados = encontrados.filter((m) => m.codigoDepartamento === codDpto);
+  if (departmentCode) found = found.filter((m) => m.departmentCode === departmentCode);
 
-  if (encontrados.length === 1) return { municipio: sinClave(encontrados[0]) };
-  if (encontrados.length > 1) {
+  if (found.length === 1) return { municipality: withoutKey(found[0]) };
+  if (found.length > 1) {
     return {
-      candidatos: encontrados.map((m) => ({ codigo: m.codigo, nombre: m.nombre, departamento: m.departamento })),
+      candidates: found.map((m) => ({ code: m.code, name: m.name, department: m.department })),
     };
   }
   return {
-    error: codDpto ? `No encontré "${p.ciudad}" en ${DEPARTAMENTOS[codDpto]}.` : `No encontré el municipio "${p.ciudad}".`,
+    error: departmentCode ? `No encontré "${p.city}" en ${DEPARTMENTS[departmentCode]}.` : `No encontré el municipio "${p.city}".`,
   };
 }
 
-export function buscarMunicipios(q: string, codDpto: string | null, limite: number): Municipio[] {
-  const clave = normalizarTexto(q);
-  return MUNICIPIOS.filter((m) => (!clave || m.clave.includes(clave)) && (!codDpto || m.codigoDepartamento === codDpto))
-    .slice(0, limite)
-    .map(sinClave);
+export function searchMunicipalities(q: string, departmentCode: string | null, limit: number): Municipality[] {
+  const key = normalizeText(q);
+  return MUNICIPALITIES.filter((m) => (!key || m.key.includes(key)) && (!departmentCode || m.departmentCode === departmentCode))
+    .slice(0, limit)
+    .map(withoutKey);
 }

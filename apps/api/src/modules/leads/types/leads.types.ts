@@ -1,142 +1,142 @@
-import type { Candidato, Municipio, NombreFuente, Telefono } from '~types/fuente.types';
-import type { EstadoContacto } from 'modules/contactos/types/contactos.types';
+import type { Candidate, Municipality, SourceName, Phone } from '~types/source.types';
+import type { ContactStatus } from 'modules/outreach/types/outreach.types';
 
-export type CanalPrincipal = 'whatsapp' | 'movil' | 'fijo' | 'email' | 'web' | 'red_social';
+export type PrimaryChannel = 'whatsapp' | 'mobile' | 'landline' | 'email' | 'web' | 'social';
 
 export interface LeadDTO {
   id: number;
-  nombre: string;
-  nombreComercial: string | null;
-  razonSocial: string | null;
-  nombresNorm: string;
+  name: string;
+  tradeName: string | null;
+  legalName: string | null;
+  namesNorm: string;
   nit: string | null;
-  codMpio: string;
-  municipio: string;
-  departamento: string;
-  direccion: string | null;
-  direccionNorm: string | null;
+  municipalityCode: string;
+  municipality: string;
+  department: string;
+  address: string | null;
+  addressNorm: string | null;
   lat: number | null;
   lon: number | null;
   ciiu: string | null;
-  categoriaFuente: string | null;
-  categorias: string[];
-  telefonos: Telefono[];
+  sourceCategory: string | null;
+  categories: string[];
+  phones: Phone[];
   emails: string[];
-  sitiosWeb: string[];
-  redes: string[];
-  canalPrincipal: CanalPrincipal | null;
+  websites: string[];
+  socialLinks: string[];
+  primaryChannel: PrimaryChannel | null;
   contactable: boolean;
-  contactado?: boolean;
-  contactadoEn?: Date | null;
-  /** Usuario al que quedó asignado el lead al darle "Contactar". */
-  contactadoPorId?: number | null;
-  /** Solo en listados y detalle: quién lo contactó. */
-  contactadoPor?: ContactadoPorDTO | null;
-  /** Embudo de contacto (lo cambia solo el módulo de contactos). */
-  estadoContacto?: EstadoContacto;
-  ultimoContactoEn?: Date | null;
-  respondioEn?: Date | null;
-  /** Pidió no volver a ser contactado. */
-  noContactar?: boolean;
-  /** Última calificación (Dapta o manual). La cambia solo el módulo de calificaciones. */
-  calidad?: 'ALTA' | 'MEDIA' | 'BAJA' | 'DESCARTADO' | null;
-  puntaje?: number | null;
-  calificadoEn?: Date | null;
-  esPersonaNatural: boolean | null;
-  fuentes: NombreFuente[];
-  numFuentes: number;
-  fuenteOrigen: NombreFuente;
-  busquedaOrigenId: number | null;
+  contacted?: boolean;
+  contactedAt?: Date | null;
+  /** User the lead was assigned to when they pressed "Contact". */
+  contactedById?: number | null;
+  /** Only in listings and detail: who contacted it. */
+  contactedBy?: ContactedByDTO | null;
+  /** Contact funnel (only the outreach module changes it). */
+  contactStatus?: ContactStatus;
+  lastContactedAt?: Date | null;
+  repliedAt?: Date | null;
+  /** Asked not to be contacted again. */
+  doNotContact?: boolean;
+  /** Latest qualification (Dapta or manual). Only the qualifications module changes it. */
+  quality?: 'HIGH' | 'MEDIUM' | 'LOW' | 'DISCARDED' | null;
+  score?: number | null;
+  qualifiedAt?: Date | null;
+  isIndividual: boolean | null;
+  sources: SourceName[];
+  sourceCount: number;
+  originSource: SourceName;
+  originSearchId: number | null;
   createdAt: Date;
   updatedAt: Date;
 }
 
-export interface ContactadoPorDTO {
+export interface ContactedByDTO {
   id: number;
   fullName: string;
   email: string;
 }
 
-export type CreateLeadDTO = Omit<LeadDTO, 'id' | 'createdAt' | 'updatedAt' | 'contactadoPor'>;
+export type CreateLeadDTO = Omit<LeadDTO, 'id' | 'createdAt' | 'updatedAt' | 'contactedBy'>;
 export type UpdateLeadDTO = Partial<CreateLeadDTO>;
 
-export interface AparicionDTO {
-  fuente: NombreFuente;
-  idExterno: string;
-  coincidencia: string;
-  datos: unknown;
-  busquedaId: number | null;
-  primeraVez: Date;
-  ultimaVez: Date;
+export interface OccurrenceDTO {
+  source: SourceName;
+  externalId: string;
+  match: string;
+  data: unknown;
+  searchId: number | null;
+  firstSeen: Date;
+  lastSeen: Date;
 }
 
-export interface LeadDetalleDTO extends LeadDTO {
-  apariciones: AparicionDTO[];
+export interface LeadDetailDTO extends LeadDTO {
+  occurrences: OccurrenceDTO[];
 }
 
-export type TipoClave = 'nit' | 'telefono' | 'email' | 'dominio';
+export type KeyType = 'nit' | 'phone' | 'email' | 'domain';
 
-export interface ClaveDTO {
-  tipo: TipoClave;
-  valor: string;
+export interface KeyDTO {
+  type: KeyType;
+  value: string;
 }
 
-export interface FiltrosLeadsDTO {
-  busquedaId?: number;
-  codMpio?: string;
-  codDpto?: string;
-  categoria?: string;
-  fuente?: NombreFuente;
+export interface LeadFiltersDTO {
+  searchId?: number;
+  municipalityCode?: string;
+  departmentCode?: string;
+  category?: string;
+  source?: SourceName;
   contactable?: boolean;
-  contactado?: boolean;
-  /** Solo los leads que contactó este usuario. */
-  contactadoPorId?: number;
-  /** Uno o varios estados del embudo. */
-  estados?: EstadoContacto[];
-  /** Una o varias calidades; "SIN" = sin calificar. */
-  calidades?: string[];
-  enAmbas?: boolean;
-  personasNaturales?: boolean;
+  contacted?: boolean;
+  /** Only the leads contacted by this user. */
+  contactedById?: number;
+  /** One or more funnel statuses. */
+  statuses?: ContactStatus[];
+  /** One or more qualities; "NONE" = not qualified. */
+  qualities?: string[];
+  inBoth?: boolean;
+  individuals?: boolean;
   q?: string;
-  limite: number;
-  pagina: number;
+  limit: number;
+  page: number;
 }
 
-export interface ListadoLeadsDTO {
+export interface LeadListDTO {
   total: number;
-  pagina: number;
-  limite: number;
+  page: number;
+  limit: number;
   leads: LeadDTO[];
 }
 
-export type ResultadoRegistroLead = 'nuevo' | 'enriquecido' | 'sin_cambios';
+export type LeadRecordResult = 'new' | 'enriched' | 'unchanged';
 
-export interface ContextoRegistroDTO {
-  municipio: Municipio;
-  categoria: string | null;
-  busquedaId: number;
+export interface RecordContextDTO {
+  municipality: Municipality;
+  category: string | null;
+  searchId: number;
 }
 
-export interface ConteoRegistroDTO {
-  registros: number;
-  nuevos: number;
-  enriquecidos: number;
-  sinCambios: number;
-  omitidos: number;
+export interface RecordCountDTO {
+  records: number;
+  new: number;
+  enriched: number;
+  unchanged: number;
+  skipped: number;
 }
 
-export interface ResumenBusquedaLeadsDTO {
+export interface SearchLeadsSummaryDTO {
   leads: number;
-  nuevos: number;
+  new: number;
   contactables: number;
-  enVariasFuentes: number;
+  inMultipleSources: number;
 }
 
-export interface EstadisticaFuenteDTO {
-  fuente: string;
+export interface SourceStatsDTO {
+  source: string;
   leads: number;
   contactables: number;
-  atribuidos: number;
+  attributed: number;
 }
 
-export type { Candidato };
+export type { Candidate };

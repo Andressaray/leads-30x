@@ -1,61 +1,61 @@
-// Sesión del usuario (token + datos básicos). Se guarda en localStorage para no pedir login
-// en cada recarga; si no está disponible (modo privado, prerender) queda solo en memoria.
+// User session (token + basic data). Stored in localStorage so login is not required
+// on every reload; if it is not available (private mode, prerender) it stays only in memory.
 
-export type Rol = "SERVICE" | "ADMIN";
+export type Role = "SERVICE" | "ADMIN";
 
-export interface UsuarioSesion {
+export interface SessionUser {
   id: number;
   email: string;
   fullName: string;
-  rol: Rol;
+  role: Role;
 }
 
-export interface Sesion {
+export interface Session {
   token: string;
-  usuario: UsuarioSesion;
+  user: SessionUser;
 }
 
-const CLAVE = "leads_sesion";
-const oyentes = new Set<() => void>();
+const KEY = "leads_session";
+const listeners = new Set<() => void>();
 
-let actual: Sesion | null | undefined;
+let current: Session | null | undefined;
 
-function esSesion(v: unknown): v is Sesion {
-  const s = v as Sesion | null;
-  return Boolean(s && typeof s.token === "string" && s.usuario && typeof s.usuario.id === "number");
+function isSession(v: unknown): v is Session {
+  const s = v as Session | null;
+  return Boolean(s && typeof s.token === "string" && s.user && typeof s.user.id === "number");
 }
 
-function leer(): Sesion | null {
-  if (actual !== undefined) return actual;
+function read(): Session | null {
+  if (current !== undefined) return current;
   try {
-    const crudo = globalThis.localStorage?.getItem(CLAVE);
-    const valor: unknown = crudo ? JSON.parse(crudo) : null;
-    actual = esSesion(valor) ? valor : null;
+    const raw = globalThis.localStorage?.getItem(KEY);
+    const value: unknown = raw ? JSON.parse(raw) : null;
+    current = isSession(value) ? value : null;
   } catch {
-    actual = null;
+    current = null;
   }
-  return actual;
+  return current;
 }
 
-function guardar(valor: Sesion | null) {
-  actual = valor;
+function save(value: Session | null) {
+  current = value;
   try {
-    if (valor) globalThis.localStorage?.setItem(CLAVE, JSON.stringify(valor));
-    else globalThis.localStorage?.removeItem(CLAVE);
+    if (value) globalThis.localStorage?.setItem(KEY, JSON.stringify(value));
+    else globalThis.localStorage?.removeItem(KEY);
   } catch {
     // sin persistencia: queda solo en memoria
   }
-  oyentes.forEach((fn) => fn());
+  listeners.forEach((fn) => fn());
 }
 
 export const sessionStore = {
-  get: leer,
-  set: (valor: Sesion) => guardar(valor),
-  clear: () => guardar(null),
+  get: read,
+  set: (value: Session) => save(value),
+  clear: () => save(null),
   subscribe(fn: () => void) {
-    oyentes.add(fn);
+    listeners.add(fn);
     return () => {
-      oyentes.delete(fn);
+      listeners.delete(fn);
     };
   },
 };

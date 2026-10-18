@@ -3,7 +3,7 @@ import { defineConfig, loadEnv } from "vite";
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
-  // En desarrollo, /api y /health van a la API local (apps/api).
+  // In development, /api and /health go to the local API (apps/api).
   const api = env.API_PROXY_TARGET || "http://localhost:3000";
 
   return {

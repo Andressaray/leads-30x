@@ -1,31 +1,31 @@
-// Firma y verificación de los tokens de sesión (JWT HS256).
+// Signing and verification of session tokens (JWT HS256).
 import jwt from 'jsonwebtoken';
-import { ROLES, type UsuarioSesion } from '~types/auth.types';
+import { ROLES, type SessionUser } from '~types/auth.types';
 
 interface Payload {
   sub: string;
   email: string;
   fullName: string;
-  rol: string;
+  role: string;
 }
 
-export function firmarToken(usuario: UsuarioSesion, secreto: string, expiraEn: string): string {
-  const payload: Omit<Payload, 'sub'> = { email: usuario.email, fullName: usuario.fullName, rol: usuario.rol };
-  return jwt.sign(payload, secreto, {
+export function signToken(user: SessionUser, secret: string, expiresIn: string): string {
+  const payload: Omit<Payload, 'sub'> = { email: user.email, fullName: user.fullName, role: user.role };
+  return jwt.sign(payload, secret, {
     algorithm: 'HS256',
-    subject: String(usuario.id),
-    expiresIn: expiraEn as jwt.SignOptions['expiresIn'],
+    subject: String(user.id),
+    expiresIn: expiresIn as jwt.SignOptions['expiresIn'],
   });
 }
 
-/** Devuelve el usuario del token, o null si la firma no es válida, expiró o el contenido no cuadra. */
-export function verificarToken(token: string, secreto: string): UsuarioSesion | null {
+/** Returns the token's user, or null if the signature is invalid, it expired or the content does not match. */
+export function verifyToken(token: string, secret: string): SessionUser | null {
   try {
-    const p = jwt.verify(token, secreto, { algorithms: ['HS256'] }) as Partial<Payload>;
+    const p = jwt.verify(token, secret, { algorithms: ['HS256'] }) as Partial<Payload>;
     const id = Number(p.sub);
     if (!Number.isInteger(id) || id < 1 || !p.email || !p.fullName) return null;
-    if (!ROLES.includes(p.rol as UsuarioSesion['rol'])) return null;
-    return { id, email: p.email, fullName: p.fullName, rol: p.rol as UsuarioSesion['rol'] };
+    if (!ROLES.includes(p.role as SessionUser['role'])) return null;
+    return { id, email: p.email, fullName: p.fullName, role: p.role as SessionUser['role'] };
   } catch {
     return null;
   }

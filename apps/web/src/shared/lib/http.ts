@@ -1,5 +1,5 @@
-// Cliente del backend (apps/api). La URL base sale de VITE_API_URL; vacía = mismo origen.
-// Todas las respuestas de la API usan el sobre { status, data } o { status, error, details }.
+// Backend client (apps/api). The base URL comes from VITE_API_URL; empty = same origin.
+// Every API response uses the { status, data } or { status, error, details } envelope.
 import { sessionStore } from "./session-store";
 
 const BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
@@ -27,42 +27,42 @@ export function apiUrl(path: string, query?: Query): string {
   return `${BASE_URL}${path}${s ? `?${s}` : ""}`;
 }
 
-function encabezados(extra?: Record<string, string>): Record<string, string> {
+function headers(extra?: Record<string, string>): Record<string, string> {
   const token = sessionStore.get()?.token;
   return { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...extra };
 }
 
-interface Opciones {
+interface Options {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   query?: Query;
   body?: unknown;
   signal?: AbortSignal;
 }
 
-async function enviar(path: string, { method = "GET", query, body, signal }: Opciones): Promise<Response> {
-  const conToken = Boolean(sessionStore.get());
+async function send(path: string, { method = "GET", query, body, signal }: Options): Promise<Response> {
+  const withToken = Boolean(sessionStore.get());
   const res = await fetch(apiUrl(path, query), {
     method,
     signal,
-    headers: encabezados(body !== undefined ? { "Content-Type": "application/json" } : undefined),
+    headers: headers(body !== undefined ? { "Content-Type": "application/json" } : undefined),
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
-  // La sesión venció o ya no es válida: se cierra y las rutas protegidas mandan al login.
-  if (res.status === 401 && conToken) sessionStore.clear();
+  // The session expired or is no longer valid: it is closed and the protected routes send you to login.
+  if (res.status === 401 && withToken) sessionStore.clear();
   return res;
 }
 
-/** Llama a la API y devuelve `data`; si la respuesta no es 2xx lanza ApiError con `error` y `details`. */
-export async function request<T>(path: string, opciones: Opciones = {}): Promise<T> {
-  const res = await enviar(path, opciones);
+/** Calls the API and returns `data`; if the response is not 2xx it throws ApiError with `error` and `details`. */
+export async function request<T>(path: string, options: Options = {}): Promise<T> {
+  const res = await send(path, options);
   const json = (await res.json().catch(() => null)) as { data?: T; error?: string; details?: unknown } | null;
   if (!res.ok) throw new ApiError(res.status, json?.error ?? `HTTP ${res.status}`, json?.details);
   return json?.data as T;
 }
 
-/** Para descargas (CSV, archivos): devuelve el cuerpo como Blob. */
-export async function requestBlob(path: string, opciones: Opciones = {}): Promise<Blob> {
-  const res = await enviar(path, opciones);
+/** For downloads (CSV, files): returns the body as a Blob. */
+export async function requestBlob(path: string, options: Options = {}): Promise<Blob> {
+  const res = await send(path, options);
   if (!res.ok) {
     const json = (await res.json().catch(() => null)) as { error?: string } | null;
     throw new ApiError(res.status, json?.error ?? `HTTP ${res.status}`);
@@ -75,6 +75,6 @@ export const http = {
   post: <T>(path: string, body?: unknown) => request<T>(path, { method: "POST", body }),
 };
 
-export function mensajeDeError(error: unknown): string {
+export function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }

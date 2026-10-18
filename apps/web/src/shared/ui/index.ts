@@ -1,6 +1,6 @@
 export { Avatar } from "./Avatar";
-export { Aviso } from "./Aviso";
+export { Notice } from "./Notice";
 export { Chip } from "./Chip";
-export { IconoBuscar, IconoCerrar, IconoContactados, IconoEquipo, IconoFuentes, IconoMetricas, IconoPlantillas, IconoSalir } from "./Iconos";
-export { Selector, type OpcionSelector } from "./Selector";
+export { SearchIcon, CloseIcon, ContactedIcon, TeamIcon, SourcesIcon, MetricsIcon, TemplatesIcon, LogoutIcon } from "./Icons";
+export { Selector, type SelectorOption } from "./Selector";
 export { Skeleton } from "./Skeleton";

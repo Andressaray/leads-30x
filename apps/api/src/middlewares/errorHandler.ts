@@ -1,4 +1,4 @@
-// Red de último recurso. Se monta al final en config/app.ts.
+// Last-resort safety net. Mounted last in config/app.ts.
 
 import type { NextFunction, Request, Response } from 'express';
 import { logger } from '~config/logger';
@@ -14,6 +14,6 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
   if ((err as { type?: string })?.type === 'entity.parse.failed') {
     return handleError(res, HttpCode.BAD_REQUEST, 'El cuerpo no es JSON válido.');
   }
-  logger.error({ err, path: req.path }, 'Error no controlado');
+  logger.error({ err, path: req.path }, 'Unhandled error');
   handleError(res, HttpCode.INTERNAL_SERVER_ERROR, 'Error interno.');
 }

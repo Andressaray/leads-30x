@@ -1,104 +1,104 @@
-import { CalidadChip, EstadoChip } from "@/modules/contacto";
-import { useSesion } from "@/shared/hooks/use-session";
+import { QualityChip, StatusChip } from "@/modules/contact";
+import { useSession } from "@/shared/hooks/use-session";
 import { Chip } from "@/shared/ui";
 import type { Lead } from "../types";
 
-const enlace = (u: string) => (/^https?:/.test(u) ? u : `https://${u}`);
-const etiqueta = (u: string) => u.replace(/^https?:\/\/(www\.)?/, "").slice(0, 40);
-const fecha = (iso: string) =>
+const link = (u: string) => (/^https?:/.test(u) ? u : `https://${u}`);
+const label = (u: string) => u.replace(/^https?:\/\/(www\.)?/, "").slice(0, 40);
+const date = (iso: string) =>
   new Date(iso).toLocaleString("es-CO", { day: "2-digit", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" });
 
-export type VarianteTabla = "busqueda" | "contactados";
+export type TableVariant = "search" | "contacted";
 
 interface LeadRowProps {
   lead: Lead;
-  variante: VarianteTabla;
-  /** Abre el panel de contacto del lead. */
-  onAbrir: (id: number) => void;
+  variant: TableVariant;
+  /** Opens the lead's contact panel. */
+  onOpen: (id: number) => void;
 }
 
-/** Nombre de quien contactó el lead; "Tú" si fue el usuario de la sesión. */
-function QuienContacto({ lead }: { lead: Lead }) {
-  const yo = useSesion()?.usuario.id;
-  if (!lead.contactadoPor) return <span className="contactado-por">Sin asignar</span>;
-  return lead.contactadoPor.id === yo ? (
-    <span className="tu">Tú</span>
+/** Name of whoever contacted the lead; "Tú" if it was the session user. */
+function WhoContacted({ lead }: { lead: Lead }) {
+  const me = useSession()?.user.id;
+  if (!lead.contactedBy) return <span className="contacted-by">Sin asignar</span>;
+  return lead.contactedBy.id === me ? (
+    <span className="you">Tú</span>
   ) : (
-    <span title={lead.contactadoPor.email}>{lead.contactadoPor.fullName}</span>
+    <span title={lead.contactedBy.email}>{lead.contactedBy.fullName}</span>
   );
 }
 
-function Estado({ lead, onAbrir }: { lead: Lead; onAbrir: (id: number) => void }) {
-  const estado = lead.estadoContacto ?? (lead.contactado ? "CONTACTADO" : "PENDIENTE");
-  const pendiente = estado === "PENDIENTE" && !lead.noContactar;
+function Status({ lead, onOpen }: { lead: Lead; onOpen: (id: number) => void }) {
+  const status = lead.contactStatus ?? (lead.contacted ? "CONTACTED" : "PENDING");
+  const pending = status === "PENDING" && !lead.doNotContact;
   return (
-    <div className="celda-estado">
-      {!pendiente && <EstadoChip estado={estado} noContactar={lead.noContactar} />}
-      {lead.calidad && <CalidadChip calidad={lead.calidad} puntaje={lead.puntaje} />}
-      <button type="button" className={pendiente ? "btn-contactar" : "btn-ver"} onClick={() => onAbrir(lead.id)}>
-        {pendiente ? "Contactar" : "Ver"}
+    <div className="status-cell">
+      {!pending && <StatusChip status={status} doNotContact={lead.doNotContact} />}
+      {lead.quality && <QualityChip quality={lead.quality} score={lead.score} />}
+      <button type="button" className={pending ? "btn-contact" : "btn-view"} onClick={() => onOpen(lead.id)}>
+        {pending ? "Contactar" : "Ver"}
       </button>
     </div>
   );
 }
 
-export function LeadRow({ lead, variante, onAbrir }: LeadRowProps) {
-  const enlaces = [...(lead.sitiosWeb ?? []), ...(lead.redes ?? [])];
+export function LeadRow({ lead, variant, onOpen }: LeadRowProps) {
+  const links = [...(lead.websites ?? []), ...(lead.socialLinks ?? [])];
 
   return (
     <tr>
       <td>
-        <b>{lead.nombre}</b>
-        {lead.razonSocial && lead.razonSocial !== lead.nombre && (
+        <b>{lead.name}</b>
+        {lead.legalName && lead.legalName !== lead.name && (
           <>
             <br />
-            <small>{lead.razonSocial}</small>
+            <small>{lead.legalName}</small>
           </>
         )}
       </td>
       <td>{lead.nit ?? ""}</td>
       <td>
-        {(lead.telefonos ?? []).map((t) => (
-          <div key={t.numero}>
-            {t.numero}
+        {(lead.phones ?? []).map((t) => (
+          <div key={t.number}>
+            {t.number}
             {t.whatsapp ? " (WhatsApp)" : ""}
           </div>
         ))}
         {(lead.emails ?? []).map((e) => (
           <div key={e}>{e}</div>
         ))}
-        {enlaces.map((u) => (
+        {links.map((u) => (
           <div key={u}>
-            <a href={enlace(u)} target="_blank" rel="noopener noreferrer">
-              {etiqueta(u)}
+            <a href={link(u)} target="_blank" rel="noopener noreferrer">
+              {label(u)}
             </a>
           </div>
         ))}
       </td>
-      <td>{lead.direccion ?? ""}</td>
+      <td>{lead.address ?? ""}</td>
       <td>
-        {(lead.fuentes ?? []).map((f) => (
+        {(lead.sources ?? []).map((f) => (
           <Chip key={f}>{f}</Chip>
         ))}
       </td>
-      {variante === "contactados" ? (
+      {variant === "contacted" ? (
         <>
           <td>
-            <QuienContacto lead={lead} />
+            <WhoContacted lead={lead} />
           </td>
           <td style={{ whiteSpace: "nowrap" }}>
-            {lead.ultimoContactoEn ? fecha(lead.ultimoContactoEn) : lead.contactadoEn ? fecha(lead.contactadoEn) : ""}
+            {lead.lastContactedAt ? date(lead.lastContactedAt) : lead.contactedAt ? date(lead.contactedAt) : ""}
           </td>
           <td>
-            <Estado lead={lead} onAbrir={onAbrir} />
+            <Status lead={lead} onOpen={onOpen} />
           </td>
         </>
       ) : (
         <td>
-          <Estado lead={lead} onAbrir={onAbrir} />
-          {lead.contactadoPor && (
-            <span className="contactado-por">
-              por <QuienContacto lead={lead} />
+          <Status lead={lead} onOpen={onOpen} />
+          {lead.contactedBy && (
+            <span className="contacted-by">
+              por <WhoContacted lead={lead} />
             </span>
           )}
         </td>

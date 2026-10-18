@@ -1,12 +1,12 @@
-// Sesiones para las pruebas HTTP: firma tokens con el JWT_SECRET de pruebas.
-import type { UsuarioSesion } from '~types/auth.types';
-import { firmarToken } from '~utils/token';
+// Sessions for the HTTP tests: signs tokens with the test JWT_SECRET.
+import type { SessionUser } from '~types/auth.types';
+import { signToken } from '~utils/token';
 
-export const ANDRES: UsuarioSesion = { id: 1, email: 'andres@gmail.com', fullName: 'Andres Saray', rol: 'SERVICE' };
-export const ADMIN: UsuarioSesion = { id: 3, email: 'admin@gmail.com', fullName: 'Administrador', rol: 'ADMIN' };
+export const ANDRES: SessionUser = { id: 1, email: 'andres@gmail.com', fullName: 'Andres Saray', role: 'SERVICE' };
+export const ADMIN: SessionUser = { id: 3, email: 'admin@gmail.com', fullName: 'Administrador', role: 'ADMIN' };
 
-export function tokenDe(usuario: UsuarioSesion = ANDRES, expiraEn = '1h'): string {
-  return firmarToken(usuario, process.env.JWT_SECRET!, expiraEn);
+export function tokenFor(user: SessionUser = ANDRES, expiresIn = '1h'): string {
+  return signToken(user, process.env.JWT_SECRET!, expiresIn);
 }
 
-export const bearer = (usuario: UsuarioSesion = ANDRES) => `Bearer ${tokenDe(usuario)}`;
+export const bearer = (user: SessionUser = ANDRES) => `Bearer ${tokenFor(user)}`;

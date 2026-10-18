@@ -1,57 +1,57 @@
 import { useCallback, useEffect, useState } from "react";
-import { mensajeDeError } from "@/shared/lib/http";
-import { listarLeads } from "../services/leads.service";
-import type { FiltrosLeads, ListadoLeads } from "../types";
+import { errorMessage } from "@/shared/lib/http";
+import { listLeads } from "../services/leads.service";
+import type { LeadFilters, LeadList } from "../types";
 
-interface Respuesta {
-  clave: string;
-  datos: ListadoLeads | null;
+interface Reply {
+  key: string;
+  data: LeadList | null;
   error: string | null;
 }
 
-interface OpcionesPagina {
-  /** Página controlada desde afuera (para conservarla al cambiar de sección). Sin valor, la maneja el hook. */
-  pagina?: number;
-  onCambiarPagina?: (pagina: number) => void;
+interface PageOptions {
+  /** Page controlled from outside (to keep it when changing sections). Without a value, the hook manages it. */
+  page?: number;
+  onPageChange?: (page: number) => void;
 }
 
-/** Tabla paginada de leads para unos filtros; recargar() la vuelve a pedir (tras contactar un lead). */
-export function useLeads(filtros: FiltrosLeads, { pagina: paginaExterna, onCambiarPagina }: OpcionesPagina = {}) {
-  const claveFiltros = JSON.stringify(filtros);
-  // La página se guarda junto a sus filtros: si cambian, se vuelve a la 1 sin un efecto extra.
-  const [paginaDe, setPaginaDe] = useState({ filtros: claveFiltros, pagina: 1 });
-  const paginaInterna = paginaDe.filtros === claveFiltros ? paginaDe.pagina : 1;
-  const pagina = paginaExterna ?? paginaInterna;
-  const [recarga, setRecarga] = useState(0);
-  const [respuesta, setRespuesta] = useState<Respuesta | null>(null);
+/** Paginated leads table for some filters; reload() requests it again (after contacting a lead). */
+export function useLeads(filters: LeadFilters, { page: externalPage, onPageChange }: PageOptions = {}) {
+  const filtersKey = JSON.stringify(filters);
+  // The page is stored next to its filters: if they change, it goes back to 1 without an extra effect.
+  const [pageOf, setPageOf] = useState({ filters: filtersKey, page: 1 });
+  const internalPage = pageOf.filters === filtersKey ? pageOf.page : 1;
+  const page = externalPage ?? internalPage;
+  const [reloadKey, setReloadKey] = useState(0);
+  const [response, setReply] = useState<Reply | null>(null);
 
-  const clave = `${claveFiltros}|${pagina}|${recarga}`;
+  const key = `${filtersKey}|${page}|${reloadKey}`;
 
   useEffect(() => {
     const control = new AbortController();
-    listarLeads(JSON.parse(claveFiltros) as FiltrosLeads, pagina, control.signal)
-      .then((datos) => setRespuesta({ clave, datos, error: null }))
+    listLeads(JSON.parse(filtersKey) as LeadFilters, page, control.signal)
+      .then((data) => setReply({ key, data, error: null }))
       .catch((err: unknown) => {
-        if (!control.signal.aborted) setRespuesta({ clave, datos: null, error: mensajeDeError(err) });
+        if (!control.signal.aborted) setReply({ key, data: null, error: errorMessage(err) });
       });
     return () => control.abort();
-  }, [clave, claveFiltros, pagina]);
+  }, [key, filtersKey, page]);
 
-  const setPagina = useCallback(
-    (p: number) => (onCambiarPagina ? onCambiarPagina(p) : setPaginaDe({ filtros: claveFiltros, pagina: p })),
-    [claveFiltros, onCambiarPagina],
+  const setPage = useCallback(
+    (p: number) => (onPageChange ? onPageChange(p) : setPageOf({ filters: filtersKey, page: p })),
+    [filtersKey, onPageChange],
   );
 
-  const recargar = useCallback(() => setRecarga((n) => n + 1), []);
+  const reload = useCallback(() => setReloadKey((n) => n + 1), []);
 
-  const cargando = respuesta?.clave !== clave;
+  const loading = response?.key !== key;
   return {
-    cargando,
-    // Mientras carga se conservan los datos anteriores (sirven para dimensionar el esqueleto).
-    datos: respuesta?.datos ?? null,
-    error: cargando ? null : (respuesta?.error ?? null),
-    pagina,
-    setPagina,
-    recargar,
+    loading,
+    // While loading, the previous data is kept (it is used to size the skeleton).
+    data: response?.data ?? null,
+    error: loading ? null : (response?.error ?? null),
+    page,
+    setPage,
+    reload,
   };
 }

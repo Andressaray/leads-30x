@@ -1,52 +1,52 @@
 import { describe, expect, it } from "vitest";
-import { cerrarSesion, iniciarSesion, listarMiembros } from "@/modules/auth";
-import { rutaSegura } from "@/modules/auth/services/auth.service";
+import { logout, login, listMembers } from "@/modules/auth";
+import { safePath } from "@/modules/auth/services/auth.service";
 import { sessionStore } from "@/shared/lib/session-store";
-import { sesion } from "../../../helpers/fixtures";
-import { falla, llamada, mockFetch, ok } from "../../../helpers/http";
+import { session } from "../../../helpers/fixtures";
+import { failure, call, mockFetch, ok } from "../../../helpers/http";
 
 describe("iniciarSesion / cerrarSesion", () => {
-  it("guarda la sesión que devuelve la API", async () => {
-    const f = mockFetch({ "POST /api/auth/login": ok(sesion()) });
+  it("stores the session returned by the API", async () => {
+    const f = mockFetch({ "POST /api/auth/login": ok(session()) });
 
-    await expect(iniciarSesion({ email: "andres@leads.co", password: "secreta" })).resolves.toEqual(sesion());
+    await expect(login({ email: "andres@leads.co", password: "secreta" })).resolves.toEqual(session());
 
-    expect(llamada(f).body).toEqual({ email: "andres@leads.co", password: "secreta" });
-    expect(sessionStore.get()).toEqual(sesion());
+    expect(call(f).body).toEqual({ email: "andres@leads.co", password: "secreta" });
+    expect(sessionStore.get()).toEqual(session());
 
-    cerrarSesion();
+    logout();
     expect(sessionStore.get()).toBeNull();
   });
 
-  it("con credenciales malas no guarda nada", async () => {
-    mockFetch({ "POST /api/auth/login": falla(401, "Credenciales inválidas") });
-    await expect(iniciarSesion({ email: "a@b.co", password: "x" })).rejects.toThrow("Credenciales inválidas");
+  it("with bad credentials it stores nothing", async () => {
+    mockFetch({ "POST /api/auth/login": failure(401, "Credenciales inválidas") });
+    await expect(login({ email: "a@b.co", password: "x" })).rejects.toThrow("Credenciales inválidas");
     expect(sessionStore.get()).toBeNull();
   });
 });
 
-describe("listarMiembros", () => {
-  it("pide los miembros con el token", async () => {
-    sessionStore.set(sesion());
-    const miembros = [{ id: 2, fullName: "Ana", email: "ana@leads.co", contactados: 4 }];
-    const f = mockFetch({ "/api/usuarios/miembros": ok(miembros) });
-    await expect(listarMiembros()).resolves.toEqual(miembros);
-    expect(llamada(f).headers.Authorization).toBe("Bearer token-de-prueba");
+describe("listMembers", () => {
+  it("requests the members with the token", async () => {
+    sessionStore.set(session());
+    const members = [{ id: 2, fullName: "Ana", email: "ana@leads.co", contacted: 4 }];
+    const f = mockFetch({ "/api/users/members": ok(members) });
+    await expect(listMembers()).resolves.toEqual(members);
+    expect(call(f).headers.Authorization).toBe("Bearer test-token");
   });
 });
 
-describe("rutaSegura", () => {
+describe("safePath", () => {
   it.each([
-    ["/contactados?equipo=1", "/contactados?equipo=1"],
-    ["/metricas", "/metricas"],
+    ["/contacted?team=1", "/contacted?team=1"],
+    ["/metrics", "/metrics"],
     [null, "/"],
     ["", "/"],
     ["https://malo.com", "/"],
     ["//malo.com", "/"],
     ["/login", "/"],
-    ["/login?volver=/x", "/"],
+    ["/login?returnTo=/x", "/"],
     ["javascript:alert(1)", "/"],
-  ])("%j → %s", (destino, esperado) => {
-    expect(rutaSegura(destino)).toBe(esperado);
+  ])("%j → %s", (destination, expected) => {
+    expect(safePath(destination)).toBe(expected);
   });
 });

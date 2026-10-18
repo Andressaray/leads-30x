@@ -7,7 +7,7 @@ function res() {
   return r as unknown as Response & Record<'status' | 'json' | 'send' | 'setHeader', jest.Mock>;
 }
 
-describe('helpers de respuesta', () => {
+describe('response helpers', () => {
   it('handleSuccess → { data, status }', () => {
     const r = res();
     handleSuccess(r, HttpCode.CREATED, { id: 1 });
@@ -15,15 +15,15 @@ describe('helpers de respuesta', () => {
     expect(r.json).toHaveBeenCalledWith({ data: { id: 1 }, status: 201 });
   });
 
-  it('handleError → { error, status } y details solo si existe', () => {
+  it('handleError → { error, status } and details only when present', () => {
     const r = res();
     handleError(r, HttpCode.BAD_REQUEST, 'mal');
     expect(r.json).toHaveBeenCalledWith({ error: 'mal', status: 400 });
-    handleError(r, HttpCode.CONFLICT, 'choque', { x: 1 });
-    expect(r.json).toHaveBeenLastCalledWith({ error: 'choque', status: 409, details: { x: 1 } });
+    handleError(r, HttpCode.CONFLICT, 'conflict', { x: 1 });
+    expect(r.json).toHaveBeenLastCalledWith({ error: 'conflict', status: 409, details: { x: 1 } });
   });
 
-  it('handleFile pone encabezados de descarga', () => {
+  it('handleFile sets the download headers', () => {
     const r = res();
     handleFile(r, 'a.csv', 'text/csv', 'x');
     expect(r.setHeader).toHaveBeenCalledWith('Content-Disposition', 'attachment; filename="a.csv"');

@@ -2,26 +2,26 @@ import type { ReactNode } from "react";
 import { NavLink } from "react-router";
 import { SITE_NAME } from "@/shared/seo/meta";
 import { cn } from "@/shared/lib/cn";
-import { Avatar, IconoCerrar, IconoSalir } from "@/shared/ui";
+import { Avatar, CloseIcon, LogoutIcon } from "@/shared/ui";
 
 export interface NavItem {
   to: string;
   label: string;
-  icono?: ReactNode;
+  icon?: ReactNode;
 }
 
 interface SidebarProps {
   id?: string;
   nav: NavItem[];
-  usuario?: { nombre: string; cargo: string };
-  onCerrarSesion?: () => void;
-  /** En móvil: cierra el panel (botón X y al elegir una sección). */
-  onCerrar?: () => void;
+  user?: { name: string; loaded: string };
+  onLogout?: () => void;
+  /** On mobile: closes the panel (X button and when choosing a section). */
+  onClose?: () => void;
 }
 
-export function Marca() {
+export function Brand() {
   return (
-    <div className="sidebar-marca">
+    <div className="sidebar-brand">
       <span className="sidebar-logo" aria-hidden="true">
         LC
       </span>
@@ -30,14 +30,14 @@ export function Marca() {
   );
 }
 
-export function Sidebar({ id, nav, usuario, onCerrarSesion, onCerrar }: SidebarProps) {
+export function Sidebar({ id, nav, user, onLogout, onClose }: SidebarProps) {
   return (
     <aside id={id} className="sidebar" aria-label="Menú principal">
-      <div className="sidebar-cabecera">
-        <Marca />
-        {onCerrar && (
-          <button type="button" className="sidebar-cerrar" onClick={onCerrar} aria-label="Cerrar menú">
-            <IconoCerrar />
+      <div className="sidebar-header">
+        <Brand />
+        {onClose && (
+          <button type="button" className="sidebar-close" onClick={onClose} aria-label="Cerrar menú">
+            <CloseIcon />
           </button>
         )}
       </div>
@@ -48,25 +48,25 @@ export function Sidebar({ id, nav, usuario, onCerrarSesion, onCerrar }: SidebarP
             key={item.label}
             to={item.to}
             end
-            onClick={onCerrar}
-            className={({ isActive }) => cn("sidebar-enlace", isActive && "activo")}
+            onClick={onClose}
+            className={({ isActive }) => cn("sidebar-link", isActive && "active")}
           >
-            {item.icono}
+            {item.icon}
             <span>{item.label}</span>
           </NavLink>
         ))}
       </nav>
 
-      {usuario && (
-        <div className="sidebar-usuario">
-          <Avatar nombre={usuario.nombre} />
-          <div className="sidebar-usuario-datos">
-            <b title={usuario.nombre}>{usuario.nombre}</b>
-            <span>{usuario.cargo}</span>
+      {user && (
+        <div className="sidebar-user">
+          <Avatar name={user.name} />
+          <div className="sidebar-user-data">
+            <b title={user.name}>{user.name}</b>
+            <span>{user.loaded}</span>
           </div>
-          {onCerrarSesion && (
-            <button type="button" className="sidebar-salir" onClick={onCerrarSesion}>
-              <IconoSalir />
+          {onLogout && (
+            <button type="button" className="sidebar-logout" onClick={onLogout}>
+              <LogoutIcon />
               <span>Cerrar sesión</span>
             </button>
           )}
@@ -76,32 +76,32 @@ export function Sidebar({ id, nav, usuario, onCerrarSesion, onCerrar }: SidebarP
   );
 }
 
-interface BarraMovilProps {
-  /** id del sidebar que abre (para aria-controls). */
+interface MobileBarProps {
+  /** id of the sidebar it opens (for aria-controls). */
   menuId: string;
-  abierto: boolean;
-  onAbrir: () => void;
-  /** true mientras el menú está abierto: la barra queda detrás y no recibe foco. */
-  inerte?: boolean;
+  isOpen: boolean;
+  onOpen: () => void;
+  /** true while the menu is open: the bar stays behind and does not receive focus. */
+  inert?: boolean;
 }
 
-/** Solo en pantallas angostas: botón de menú + marca. El sidebar entra como panel desde la izquierda. */
-export function BarraMovil({ menuId, abierto, onAbrir, inerte }: BarraMovilProps) {
+/** Only on narrow screens: menu button + brand. The sidebar slides in as a panel from the left. */
+export function MobileBar({ menuId, isOpen, onOpen, inert }: MobileBarProps) {
   return (
-    <header className="barra-movil" inert={inerte}>
+    <header className="mobile-bar" inert={inert}>
       <button
         type="button"
-        className="barra-movil-menu"
+        className="mobile-bar-menu"
         aria-label="Abrir menú"
         aria-controls={menuId}
-        aria-expanded={abierto}
-        onClick={onAbrir}
+        aria-expanded={isOpen}
+        onClick={onOpen}
       >
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
           <path d="M4 6h16M4 12h16M4 18h16" />
         </svg>
       </button>
-      <Marca />
+      <Brand />
     </header>
   );
 }

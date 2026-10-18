@@ -2,79 +2,79 @@ import { Router, type Request, type Response } from 'express';
 import { matchedData } from 'express-validator';
 import { AppError, HttpCode, handleError, handleFile, handleSuccess, handleValidator } from '~response/index';
 import { LeadsDomain } from '../domain/leads.domain';
-import type { FiltrosLeadsDTO } from '../types/leads.types';
-import { exportarLeadsValidator, filtrosLeadsValidator, idLeadValidator } from '../validator/leads.validator';
+import type { LeadFiltersDTO } from '../types/leads.types';
+import { exportLeadsValidator, leadFiltersValidator, idLeadValidator } from '../validator/leads.validator';
 
 const leadsDomain = new LeadsDomain();
 export const leadsController = Router();
 
-function responderError(res: Response, error: unknown): void {
+function respondError(res: Response, error: unknown): void {
   if (error instanceof AppError) handleError(res, error.status, error.message, error.details);
   else handleError(res, HttpCode.INTERNAL_SERVER_ERROR, 'Unknown error');
 }
 
-function aFiltros(req: Request, limitePorDefecto: number): FiltrosLeadsDTO {
+function toFilters(req: Request, defaultLimit: number): LeadFiltersDTO {
   const d = matchedData(req, { locations: ['query'] });
-  // mios=true → solo los que contactó el usuario de la sesión; contactado_por=<id> → los de esa persona.
-  const contactadoPorId = d.mios ? req.usuario!.id : d.contactado_por;
+  // mine=true → only the ones contacted by the session user; contacted_by=<id> → that person's.
+  const contactedById = d.mine ? req.user!.id : d.contacted_by;
   return {
-    busquedaId: d.busqueda,
-    codMpio: d.municipio,
-    codDpto: d.departamento,
-    categoria: d.categoria,
-    fuente: d.fuente,
+    searchId: d.search,
+    municipalityCode: d.municipality,
+    departmentCode: d.department,
+    category: d.category,
+    source: d.source,
     contactable: d.contactable,
-    contactado: d.contactado,
-    contactadoPorId,
-    estados: d.estado,
-    calidades: d.calidad,
-    enAmbas: d.en_ambas,
-    personasNaturales: d.personas_naturales,
+    contacted: d.contacted,
+    contactedById,
+    statuses: d.status,
+    qualities: d.quality,
+    inBoth: d.in_both,
+    individuals: d.individuals,
     q: d.q,
-    limite: d.limite ?? limitePorDefecto,
-    pagina: d.pagina ?? 1,
+    limit: d.limit ?? defaultLimit,
+    page: d.page ?? 1,
   };
 }
 
-leadsController.get('/', [...filtrosLeadsValidator, handleValidator], async (req: Request, res: Response) => {
+leadsController.get('/', [...leadFiltersValidator, handleValidator], async (req: Request, res: Response) => {
   try {
-    handleSuccess(res, HttpCode.OK, await leadsDomain.listar(aFiltros(req, 100)));
+    handleSuccess(res, HttpCode.OK, await leadsDomain.list(toFilters(req, 100)));
   } catch (error: unknown) {
-    responderError(res, error);
+    respondError(res, error);
   }
 });
 
-leadsController.post('/:id/contactar', [...idLeadValidator, handleValidator], async (req: Request, res: Response) => {
+leadsController.post('/:id/mark-contacted', [...idLeadValidator, handleValidator], async (req: Request, res: Response) => {
   try {
     const { id } = matchedData(req, { locations: ['params'] });
-    handleSuccess(res, HttpCode.OK, await leadsDomain.marcarContactado(id, req.usuario!.id));
+    handleSuccess(res, HttpCode.OK, await leadsDomain.markContacted(id, req.user!.id));
   } catch (error: unknown) {
-    responderError(res, error);
+    respondError(res, error);
   }
 });
 
-leadsController.get('/export.csv', [...exportarLeadsValidator, handleValidator], async (req: Request, res: Response) => {
+leadsController.get('/export.csv', [...exportLeadsValidator, handleValidator], async (req: Request, res: Response) => {
   try {
-    const csv = await leadsDomain.exportarCsv(aFiltros(req, 100000));
+    const csv = await leadsDomain.exportCsv(toFilters(req, 100000));
     handleFile(res, 'leads.csv', 'text/csv; charset=utf-8', csv);
   } catch (error: unknown) {
-    responderError(res, error);
+    respondError(res, error);
   }
 });
 
-leadsController.get('/estadisticas', async (_req: Request, res: Response) => {
+leadsController.get('/stats', async (_req: Request, res: Response) => {
   try {
-    handleSuccess(res, HttpCode.OK, await leadsDomain.estadisticas());
+    handleSuccess(res, HttpCode.OK, await leadsDomain.stats());
   } catch (error: unknown) {
-    responderError(res, error);
+    respondError(res, error);
   }
 });
 
 leadsController.get('/:id', [...idLeadValidator, handleValidator], async (req: Request, res: Response) => {
   try {
     const { id } = matchedData(req, { locations: ['params'] });
-    handleSuccess(res, HttpCode.OK, await leadsDomain.obtener(id));
+    handleSuccess(res, HttpCode.OK, await leadsDomain.get(id));
   } catch (error: unknown) {
-    responderError(res, error);
+    respondError(res, error);
   }
 });

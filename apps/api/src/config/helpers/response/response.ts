@@ -22,9 +22,9 @@ export function handleError(res: Response, status: HttpCode, message: string, de
   res.status(status).json(body);
 }
 
-/** Para descargas (CSV): el cuerpo es el archivo, no el sobre JSON. */
-export function handleFile(res: Response, filename: string, contentType: string, contenido: string | Buffer): void {
+/** For downloads (CSV): the body is the file, not the JSON envelope. */
+export function handleFile(res: Response, filename: string, contentType: string, content: string | Buffer): void {
   res.setHeader('Content-Type', contentType);
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-  res.status(HttpCode.OK).send(contenido);
+  res.status(HttpCode.OK).send(content);
 }
