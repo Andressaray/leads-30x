@@ -258,7 +258,7 @@ code { font-size:.92em; background:var(--panel-2); border:1px solid var(--borde)
 .tab:hover { color:var(--texto); }
 .tab.active { background:var(--panel); color:var(--acento); box-shadow:var(--sombra); }
 
-.contact-form, .template-editor { grid-template-columns:1fr; gap:12px; }
+.contact-form, .template-editor { display:grid; grid-template-columns:1fr; gap:12px; }
 .contact-form .btn-primary, .contact-form .btn-secondary { justify-self:start; padding:9px 18px; }
 .row-2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
 .email-footer { margin:-4px 0 0; font-size:12px; color:var(--tenue); white-space:pre-line; border-left:2px solid var(--borde); padding-left:10px; }
